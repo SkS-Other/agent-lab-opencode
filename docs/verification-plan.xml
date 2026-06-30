@@ -331,7 +331,7 @@
     <M-CONFIG readiness="ready">Pure validation; deterministic asserts cover success + failure; no external surface.</M-CONFIG>
     <M-LOGGER readiness="ready">Redaction asserted by absence of secret values in captured output; no external surface.</M-LOGGER>
     <M-TRACE readiness="ready">Pure functions; determinism (VF-005) and malformed-event handling are deterministic asserts.</M-TRACE>
-    <M-SANDBOX readiness="ready">Lifecycle/endpoint/teardown verified live in Phase-3 (serve responds, clean teardown). Strict vacuum (VF-007) is the remaining Phase-4 hardening; default open bridge works.</M-SANDBOX>
+    <M-SANDBOX readiness="ready">Lifecycle/endpoint/teardown verified live (Phase-3). Strict vacuum (VF-007) verified live (Phase-4): iptables allowlist permits the LLM host + opencode infra, blocks everything else.</M-SANDBOX>
     <M-OPENCODE readiness="ready">Driver wired to real SDK; full DF-001 passed live on cpa/glm-5.2 (Phase-3). Phase-4 adds full-trajectory capture (VF-006).</M-OPENCODE>
     <M-STORE readiness="ready">Round-trip and not-found are deterministic; persisted-trace redaction asserted.</M-STORE>
     <M-ENGINE readiness="ready">Orchestration/parallelism/isolation proven with fakes and confirmed end to end via the live Phase-3 run.</M-ENGINE>

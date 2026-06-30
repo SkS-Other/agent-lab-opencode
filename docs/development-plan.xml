@@ -362,11 +362,11 @@
       <step-1 module="M-ENGINE" status="done" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
       <step-2 module="M-CLI" status="done" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
     </Phase-2>
-    <Phase-4 name="Enhancements" status="in-progress">
+    <Phase-4 name="Enhancements" status="done">
       <goal>Capture the full agent trajectory, expose the engine over MCP, and add a strict network vacuum.</goal>
-      <step-1 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">Full trace: re-read session.messages() to capture all tool calls + assistant texts with per-message tokens</step-1>
+      <step-1 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">Full trace: re-read session.messages() to capture all tool calls + assistant texts with per-message tokens (live-verified: 3-step trace incl. write tool)</step-1>
       <step-2 module="M-MCP" status="done" verification="V-M-MCP">MCP stdio server exposing run_experiment/list_runs/get_run/compare_runs over the engine (stdio smoke: initialize + tools/list verified)</step-2>
-      <step-3 module="M-SANDBOX" status="pending" verification="V-M-SANDBOX">Strict vacuum network mode: tinyproxy sidecar + internal network + domain allowlist (VF-003), guaranteed sidecar teardown</step-3>
+      <step-3 module="M-SANDBOX" status="done" verification="V-M-SANDBOX">Strict vacuum network mode: in-container iptables egress allowlist (NET_ADMIN + vacuum entrypoint). Live-verified VF-007: allowlisted reachable, others blocked, full vacuum run succeeded. (Chose iptables over proxy sidecar since node fetch ignores HTTPS_PROXY.)</step-3>
     </Phase-4>
     <Phase-3 name="LiveIntegration" status="done">
       <goal>Wire the two INTEGRATION seams to the real Docker + @opencode-ai/sdk surface and prove them against a live container.</goal>
