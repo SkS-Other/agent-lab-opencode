@@ -23,9 +23,11 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.1.0 - Wire createSdkDriver to @opencode-ai/sdk (session.create/prompt/diff, part normalization).
 //   LAST_CHANGE: v1.0.0 - Initial M-OPENCODE: driver port, deadline/partial handling, normalization via M-TRACE.
 // END_CHANGE_SUMMARY
 
+import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk";
 import type { Logger } from "../logger/index.ts";
 import type { SandboxHandle } from "../sandbox/index.ts";
 import { normalizeEvents, type RawEvent, type RunStatus, type RunTrace } from "../trace/index.ts";
@@ -172,16 +174,56 @@ export async function runOpenCode(input: RunOpenCodeInput, deps: RunOpenCodeDeps
 //   SIDE_EFFECTS: starts opencode serve and connects the SDK client when used
 //   LINKS: M-OPENCODE
 // END_CONTRACT: createSdkDriver
-export function createSdkDriver(): OpenCodeDriver {
+export function createSdkDriver(opts: { connect?: (baseUrl: string) => OpencodeClient } = {}): OpenCodeDriver {
+  const connect = opts.connect ?? ((baseUrl: string) => createOpencodeClient({ baseUrl }));
   return {
-    async start(): Promise<OpenCodeSession> {
-      // The SDK surface (opencode serve + @opencode-ai/sdk session/prompt/SSE) is wired and
-      // verified against a real container during the Phase-2 gated live run, not on faked
-      // module-level evidence. Per replan policy, do not improvise the SDK shape here.
-      throw new OpenCodeError(
-        OPENCODE_START_FAILED,
-        "live SDK driver not wired yet; supply a driver via deps or complete phase-level integration",
-      );
+    async start(input: OpenCodeStartInput): Promise<OpenCodeSession> {
+      const endpoint = input.sandbox.endpoint;
+      if (endpoint === undefined) {
+        throw new OpenCodeError(OPENCODE_START_FAILED, "sandbox has no published endpoint for opencode serve");
+      }
+      const client = connect(endpoint);
+      const created = await client.session.create({ body: { title: "agent-lab" } });
+      const sessionId = (created.data as { id?: string } | undefined)?.id;
+      if (sessionId === undefined) {
+        throw new OpenCodeError(OPENCODE_START_FAILED, "opencode session.create returned no id", created.error);
+      }
+      const { providerID, modelID } = splitModel(input.model);
+
+      return {
+        async stream(taskPrompt, sink, signal) {
+          const res = await client.session.prompt({
+            path: { id: sessionId },
+            body: {
+              model: { providerID, modelID },
+              system: input.systemPrompt,
+              parts: [{ type: "text", text: taskPrompt }],
+            },
+            signal,
+          });
+          if (res.error !== undefined || res.data === undefined) {
+            throw new Error(`opencode prompt failed: ${JSON.stringify(res.error ?? "no data")}`);
+          }
+          const { info, parts } = res.data as { info?: { tokens?: { input: number; output: number } }; parts: unknown[] };
+
+          const events = partsToEvents(parts);
+          const firstMessage = events.find((e): e is Extract<RawEvent, { type: "message" }> => e.type === "message");
+          if (firstMessage !== undefined && info?.tokens !== undefined) {
+            firstMessage.tokens = { input: info.tokens.input, output: info.tokens.output };
+          }
+          for (const ev of events) sink.push(ev);
+
+          const finalOutputText = events
+            .filter((e): e is Extract<RawEvent, { type: "message" }> => e.type === "message" && e.role === "assistant")
+            .map((e) => e.text)
+            .join("\n");
+          const gitDiff = await collectDiff(client, sessionId);
+          return { finalOutputText, ...(gitDiff !== undefined ? { gitDiff } : {}) };
+        },
+        async close() {
+          await client.session.abort({ path: { id: sessionId } }).catch(() => {});
+        },
+      };
     },
   };
 }
@@ -193,5 +235,41 @@ async function safeClose(session: OpenCodeSession, logger: Logger, runId: string
     await session.close();
   } catch {
     logger.warn({ runId }, "[OpenCodeAdapter][runOpenCode] session close failed (ignored)");
+  }
+}
+
+/** Split a "provider/model" string into the SDK's { providerID, modelID } shape. */
+function splitModel(model: string): { providerID: string; modelID: string } {
+  const slash = model.indexOf("/");
+  if (slash <= 0 || slash === model.length - 1) {
+    throw new OpenCodeError(OPENCODE_START_FAILED, `model must be in provider/model form, got "${model}"`);
+  }
+  return { providerID: model.slice(0, slash), modelID: model.slice(slash + 1) };
+}
+
+/** Map OpenCode message parts to normalized RawEvents (text -> message, tool -> tool_call). */
+function partsToEvents(parts: unknown[]): RawEvent[] {
+  const events: RawEvent[] = [];
+  for (const raw of parts) {
+    const part = raw as { type?: string; text?: string; synthetic?: boolean; tool?: string; state?: { status?: string } };
+    if (part.type === "text" && part.synthetic !== true && typeof part.text === "string" && part.text.length > 0) {
+      events.push({ type: "message", role: "assistant", text: part.text });
+    } else if (part.type === "tool" && typeof part.tool === "string") {
+      events.push({ type: "tool_call", tool: part.tool, ok: part.state?.status !== "error" });
+    }
+  }
+  return events;
+}
+
+/** Fetch the session git diff, tolerating SDK/shape errors (diff is best-effort evidence). */
+async function collectDiff(client: OpencodeClient, sessionId: string): Promise<string | undefined> {
+  try {
+    const res = await client.session.diff({ path: { id: sessionId } });
+    if (res.error !== undefined || res.data === undefined) return undefined;
+    const diffs = res.data as Array<{ path?: string; diff?: string }>;
+    const text = diffs.map((d) => d.diff ?? "").filter((s) => s.length > 0).join("\n");
+    return text.length > 0 ? text : undefined;
+  } catch {
+    return undefined;
   }
 }
