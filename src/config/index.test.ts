@@ -13,6 +13,10 @@
 //   captureLogger - fake GraceLogger that records emitted markers
 //   validInput - minimal valid raw experiment definition fixture
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-CONFIG tests (validation, defaults, matrix, markers).
+// END_CHANGE_SUMMARY
 
 import { describe, expect, test } from "bun:test";
 import {

@@ -3,7 +3,7 @@
     <keywords>agent, lab, llm, orchestration, sandbox, prompt, tests, opencode, configuration, tools</keywords>
     <annotation>CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker ("vacuum"), capture and compare agent behavior. Agents are the primary callers; humans secondary.</annotation>
 
-    <M-CONFIG NAME="Config" TYPE="UTILITY" STATUS="planned">
+    <M-CONFIG NAME="Config" TYPE="UTILITY" STATUS="implemented">
       <purpose>Parse and validate an experiment definition from CLI args and/or a config file, and expand a variation matrix.</purpose>
       <path>src/config/index.ts</path>
       <depends>none</depends>
@@ -19,7 +19,7 @@
       </annotations>
     </M-CONFIG>
 
-    <M-LOGGER NAME="Logger" TYPE="UTILITY" STATUS="planned">
+    <M-LOGGER NAME="Logger" TYPE="UTILITY" STATUS="implemented">
       <purpose>Structured logging with stable marker fields and secret redaction.</purpose>
       <path>src/logger/index.ts</path>
       <depends>none</depends>
@@ -31,7 +31,7 @@
       </annotations>
     </M-LOGGER>
 
-    <M-TRACE NAME="Trace" TYPE="UTILITY" STATUS="planned">
+    <M-TRACE NAME="Trace" TYPE="UTILITY" STATUS="implemented">
       <purpose>Normalize raw OpenCode events into a stable RunTrace and diff traces, independent of the SDK surface.</purpose>
       <path>src/trace/index.ts</path>
       <depends>none</depends>
@@ -48,7 +48,7 @@
       </annotations>
     </M-TRACE>
 
-    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" STATUS="planned">
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" STATUS="partial">
       <purpose>Provision and tear down an isolated Docker container per run with deny-by-default network plus LLM allowlist and guaranteed cleanup.</purpose>
       <path>src/sandbox/index.ts</path>
       <depends>M-LOGGER</depends>
@@ -65,7 +65,7 @@
       </annotations>
     </M-SANDBOX>
 
-    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" STATUS="planned">
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" STATUS="partial">
       <purpose>Drive OpenCode (opencode serve + @opencode-ai/sdk) inside a sandbox and stream raw events to M-TRACE.</purpose>
       <path>src/opencode/index.ts</path>
       <depends>M-SANDBOX, M-TRACE, M-LOGGER</depends>
@@ -80,7 +80,7 @@
       </annotations>
     </M-OPENCODE>
 
-    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" STATUS="planned">
+    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" STATUS="implemented">
       <purpose>Persist and retrieve experiment runs and their traces as flat JSON under runs/&lt;runId&gt;/.</purpose>
       <path>src/store/index.ts</path>
       <depends>M-TRACE, M-LOGGER</depends>

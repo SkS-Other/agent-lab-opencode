@@ -14,6 +14,10 @@
 //   sampleRun - StoredRun fixture
 //   collectLines - capture pino markers
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-STORE tests (round-trip, listing, not-found, secret absence).
+// END_CHANGE_SUMMARY
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, readFile } from "node:fs/promises";

@@ -16,6 +16,7 @@
 //   RunSummary - lightweight listing entry
 //   ExperimentSummary - replay-sufficient experiment metadata (no sandbox.env / secrets)
 //   StoreError - typed error carrying STORE_NOT_FOUND
+//   STORE_NOT_FOUND - stable error code constant
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY

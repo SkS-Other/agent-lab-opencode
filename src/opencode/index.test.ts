@@ -14,6 +14,10 @@
 //   fakeSandbox - minimal SandboxHandle stub
 //   makeDriver - OpenCodeDriver fake with scriptable behavior
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-OPENCODE tests (success, start-fail, timeout-partial, error).
+// END_CHANGE_SUMMARY
 
 import { describe, expect, test } from "bun:test";
 import { createLogger } from "../logger/index.ts";

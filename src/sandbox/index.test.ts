@@ -14,6 +14,10 @@
 //   makeDeps - build SandboxDeps with a real capture logger and a fake engine
 //   fakeEngine - DockerEngine fake recording run/exec/remove calls
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-SANDBOX tests (policy, lifecycle, teardown guarantee, failures).
+// END_CHANGE_SUMMARY
 
 import { describe, expect, test } from "bun:test";
 import { createLogger } from "../logger/index.ts";

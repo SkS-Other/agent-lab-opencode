@@ -16,6 +16,7 @@
 //   ExperimentMatrix - variation-matrix input shape
 //   SandboxOptions - sandbox/network options for one run
 //   ConfigError - typed validation error carrying code CONFIG_INVALID_INPUT
+//   CONFIG_INVALID_INPUT - stable error code constant
 //   GraceLogger - minimal structural logger interface (DI; keeps DEPENDS=none)
 // END_MODULE_MAP
 //

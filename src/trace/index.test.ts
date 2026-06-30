@@ -14,6 +14,10 @@
 //   events - baseline RawEvent[] fixture
 //   captureLogger - fake logger recording markers
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-TRACE tests (normalization, determinism, malformed, diff).
+// END_CHANGE_SUMMARY
 
 import { describe, expect, test } from "bun:test";
 import {
