@@ -1,0 +1,111 @@
+<KnowledgeGraph>
+  <Project NAME="Agent Lab" VERSION="0.2.0">
+    <keywords>agent, lab, llm, orchestration, sandbox, prompt, tests, opencode, configuration, tools</keywords>
+    <annotation>CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker ("vacuum"), capture and compare agent behavior. Agents are the primary callers; humans secondary.</annotation>
+
+    <M-CONFIG NAME="Config" TYPE="UTILITY" STATUS="planned">
+      <purpose>Parse and validate an experiment definition from CLI args and/or a config file, and expand a variation matrix.</purpose>
+      <path>src/config/index.ts</path>
+      <depends>none</depends>
+      <verification-ref>V-M-CONFIG</verification-ref>
+      <annotations>
+        <fn-loadExperiment PURPOSE="Parse and validate a single experiment definition" />
+        <fn-expandMatrix PURPOSE="Expand a variation matrix into concrete experiment definitions" />
+        <type-ExperimentDefinition PURPOSE="Validated experiment input shape" />
+      </annotations>
+    </M-CONFIG>
+
+    <M-LOGGER NAME="Logger" TYPE="UTILITY" STATUS="planned">
+      <purpose>Structured logging with stable marker fields and secret redaction.</purpose>
+      <path>src/logger/index.ts</path>
+      <depends>none</depends>
+      <verification-ref>V-M-LOGGER</verification-ref>
+      <annotations>
+        <fn-createLogger PURPOSE="Create a child logger with redaction and marker bindings" />
+      </annotations>
+    </M-LOGGER>
+
+    <M-TRACE NAME="Trace" TYPE="UTILITY" STATUS="planned">
+      <purpose>Normalize raw OpenCode events into a stable RunTrace and diff traces, independent of the SDK surface.</purpose>
+      <path>src/trace/index.ts</path>
+      <depends>none</depends>
+      <verification-ref>V-M-TRACE</verification-ref>
+      <annotations>
+        <fn-normalizeEvents PURPOSE="Fold raw OpenCode events into a RunTrace" />
+        <fn-diffTraces PURPOSE="Produce a structured diff across RunTraces" />
+        <type-RunTrace PURPOSE="runId, experiment, status, timings, steps[], tokenUsage, finalOutput, error?" />
+        <type-TraceDiff PURPOSE="Structured behavior/outcome comparison" />
+      </annotations>
+    </M-TRACE>
+
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>Provision and tear down an isolated Docker container per run with deny-by-default network plus LLM allowlist and guaranteed cleanup.</purpose>
+      <path>src/sandbox/index.ts</path>
+      <depends>M-LOGGER</depends>
+      <verification-ref>V-M-SANDBOX</verification-ref>
+      <annotations>
+        <fn-createSandbox PURPOSE="Provision an isolated container and return a handle" />
+        <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (exec, dispose)" />
+      </annotations>
+    </M-SANDBOX>
+
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>Drive OpenCode (opencode serve + @opencode-ai/sdk) inside a sandbox and stream raw events to M-TRACE.</purpose>
+      <path>src/opencode/index.ts</path>
+      <depends>M-SANDBOX, M-TRACE, M-LOGGER</depends>
+      <verification-ref>V-M-OPENCODE</verification-ref>
+      <annotations>
+        <fn-runOpenCode PURPOSE="Run one OpenCode session and return its normalized trace" />
+      </annotations>
+    </M-OPENCODE>
+
+    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" STATUS="planned">
+      <purpose>Persist and retrieve experiment runs and their traces as flat JSON under runs/&lt;runId&gt;/.</purpose>
+      <path>src/store/index.ts</path>
+      <depends>M-TRACE, M-LOGGER</depends>
+      <verification-ref>V-M-STORE</verification-ref>
+      <annotations>
+        <fn-saveRun PURPOSE="Persist a run record and trace" />
+        <fn-getRun PURPOSE="Load a run record by id" />
+        <fn-listRuns PURPOSE="List known runs" />
+      </annotations>
+    </M-STORE>
+
+    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Orchestrate experiments end to end with bounded parallelism, guaranteed cleanup, and a comparison facade.</purpose>
+      <path>src/engine/index.ts</path>
+      <depends>M-CONFIG, M-SANDBOX, M-OPENCODE, M-STORE, M-TRACE, M-LOGGER</depends>
+      <verification-ref>V-M-ENGINE</verification-ref>
+      <annotations>
+        <fn-runExperiment PURPOSE="Run one or many experiments with bounded parallelism" />
+        <fn-compareRuns PURPOSE="Load runs via M-STORE and diff them via M-TRACE" />
+      </annotations>
+    </M-ENGINE>
+
+    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" STATUS="planned">
+      <purpose>Expose the engine to agents and humans as run/list/show/compare with parseable stdout.</purpose>
+      <path>src/cli/index.ts</path>
+      <depends>M-ENGINE, M-CONFIG, M-LOGGER</depends>
+      <verification-ref>V-M-CLI</verification-ref>
+      <annotations>
+        <fn-main PURPOSE="CLI entry point dispatching run/list/show/compare" />
+      </annotations>
+    </M-CLI>
+
+    <CrossLink from="M-CLI" to="M-ENGINE" relation="invokes" />
+    <CrossLink from="M-CLI" to="M-CONFIG" relation="uses" />
+    <CrossLink from="M-CLI" to="M-LOGGER" relation="uses" />
+    <CrossLink from="M-ENGINE" to="M-CONFIG" relation="uses" />
+    <CrossLink from="M-ENGINE" to="M-SANDBOX" relation="provisions via" />
+    <CrossLink from="M-ENGINE" to="M-OPENCODE" relation="drives via" />
+    <CrossLink from="M-ENGINE" to="M-STORE" relation="persists via" />
+    <CrossLink from="M-ENGINE" to="M-TRACE" relation="compares via" />
+    <CrossLink from="M-ENGINE" to="M-LOGGER" relation="uses" />
+    <CrossLink from="M-OPENCODE" to="M-SANDBOX" relation="runs inside" />
+    <CrossLink from="M-OPENCODE" to="M-TRACE" relation="normalizes via" />
+    <CrossLink from="M-OPENCODE" to="M-LOGGER" relation="uses" />
+    <CrossLink from="M-STORE" to="M-TRACE" relation="serializes type" />
+    <CrossLink from="M-STORE" to="M-LOGGER" relation="uses" />
+    <CrossLink from="M-SANDBOX" to="M-LOGGER" relation="uses" />
+  </Project>
+</KnowledgeGraph>

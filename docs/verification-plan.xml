@@ -1,0 +1,293 @@
+<VerificationPlan VERSION="0.2.0">
+  <GlobalPolicy>
+    <log-format>[Module][function][BLOCK_NAME] message</log-format>
+    <deterministic-first>true</deterministic-first>
+    <module-level-focus>Fast deterministic checks close to the module; Docker and OpenCode seams faked.</module-level-focus>
+    <wave-level-focus>Checks only merged surfaces touched by the current wave.</wave-level-focus>
+    <phase-level-focus>Broader integration and regression confidence, including at least one gated live OpenCode run.</phase-level-focus>
+    <autonomy-gate>Each shared module needs commands, scenarios, observable evidence, and wave/phase follow-up before long autonomous execution.</autonomy-gate>
+    <redaction>Never log secrets, credentials, raw provider tokens, or sensitive payloads — in live logs or persisted traces.</redaction>
+
+    <evidence-capture>Tests capture logs by attaching an in-memory pino transport (or a captured stream) and assert on structured fields and [Module][function][BLOCK_NAME] markers — never by scraping prose. Docker and the OpenCode SDK are replaced by narrow fakes at their adapter boundaries (M-SANDBOX, M-OPENCODE) so module-level checks stay deterministic and fast.</evidence-capture>
+    <forbidden-marker-policy>A "forbidden marker" assertion proves a branch did NOT run: e.g. the failure path must not emit BLOCK_PERSIST_RUN, and BLOCK_TEARDOWN must appear on every path. Treat a missing required marker or a present forbidden marker on a critical branch as a verification defect, not a flaky test.</forbidden-marker-policy>
+    <determinism-bounds>Agent output is non-deterministic and is NOT asserted by exact text. Determinism is asserted only on what the tool controls: RunTrace normalization (same events -> same RunTrace), persistence round-trips, config validation, redaction, scheduling bounds, and structural trace shape. Live-agent scenarios are gated phase-level only.</determinism-bounds>
+    <retry-timeout-bounds>The engine does not retry a run automatically (a failed run is a recorded outcome, not a retry loop); max-fix-attempts-per-step=2 governs the fix loop, not run execution. Every run has a hard timeout; on timeout M-OPENCODE returns a partial-but-marked trace (OPENCODE_RUN_TIMEOUT) and the sandbox is still torn down.</retry-timeout-bounds>
+    <semantic-check-policy>Semantic (LLM-judge) evaluation is used only for optional qualitative comparison of agent behavior across runs (UC-003), always bounded by an explicit rubric over a structured trace. It is never used to gate module-level correctness, which stays on deterministic and trace assertions.</semantic-check-policy>
+  </GlobalPolicy>
+
+  <CriticalFlows>
+    <VF-001 NAME="SingleRunHappyPath" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>An experiment with a given system prompt, model, and task prompt runs in an isolated sandbox and produces a trace.</scenario>
+      <expected-outcome>A persisted run record with a complete behavior trace and a success status.</expected-outcome>
+      <required-signals>
+        <log-marker>[ExperimentEngine][runExperiment][BLOCK_SCHEDULE_RUNS]</log-marker>
+        <log-marker>[OpenCodeAdapter][runOpenCode][BLOCK_STREAM_TRACE]</log-marker>
+        <trace-sequence>BLOCK_APPLY_NETWORK_POLICY -> BLOCK_STREAM_TRACE -> BLOCK_PERSIST_RUN</trace-sequence>
+      </required-signals>
+    </VF-001>
+
+    <VF-002 NAME="ParallelIsolation" USE_CASES="UC-002" DATA_FLOW="DF-002" PRIORITY="high">
+      <scenario>Several experiments run concurrently in separate sandboxes.</scenario>
+      <expected-outcome>N independent traces; no run observes or mutates another's filesystem or session; concurrency stays within the bound.</expected-outcome>
+      <required-signals>
+        <log-marker>[ExperimentEngine][runExperiment][BLOCK_SCHEDULE_RUNS]</log-marker>
+        <trace-sequence>N distinct sandboxIds, no shared mounts</trace-sequence>
+      </required-signals>
+    </VF-002>
+
+    <VF-003 NAME="NetworkVacuum" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>A sandboxed run can reach only the allowlisted LLM endpoint; all other egress is denied.</scenario>
+      <expected-outcome>LLM calls succeed; a probe to a non-allowlisted host fails.</expected-outcome>
+      <required-signals>
+        <log-marker>[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY]</log-marker>
+      </required-signals>
+    </VF-003>
+
+    <VF-004 NAME="GuaranteedTeardown" USE_CASES="UC-002" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>A run fails or times out mid-flight.</scenario>
+      <expected-outcome>The sandbox container and volumes are torn down; no orphaned resources remain.</expected-outcome>
+      <required-signals>
+        <log-marker>[Sandbox][createSandbox][BLOCK_TEARDOWN]</log-marker>
+        <trace-sequence>Teardown runs even on the failure path.</trace-sequence>
+      </required-signals>
+    </VF-004>
+
+    <VF-005 NAME="DeterministicTrace" USE_CASES="UC-003" DATA_FLOW="DF-003" PRIORITY="high">
+      <scenario>The same raw OpenCode event sequence is normalized twice.</scenario>
+      <expected-outcome>Identical RunTrace output; diffTraces of two identical traces reports no differences.</expected-outcome>
+      <required-signals>
+        <log-marker>[Trace][normalizeEvents][BLOCK_NORMALIZE_EVENTS]</log-marker>
+        <trace-sequence>BLOCK_NORMALIZE_EVENTS -> stable RunTrace</trace-sequence>
+      </required-signals>
+    </VF-005>
+  </CriticalFlows>
+
+  <ModuleVerification>
+    <V-M-CONFIG MODULE="M-CONFIG" PRIORITY="high">
+      <test-files>
+        <file>src/config/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/config/index.test.ts</check-1>
+        <check-2>bun x tsc --noEmit</check-2>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A valid experiment definition parses into a typed object.</scenario-1>
+        <scenario-2 kind="failure">Missing/invalid fields are rejected with CONFIG_INVALID_INPUT.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Config][loadExperiment][BLOCK_VALIDATE_INPUT]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Invalid input must not produce a partial ExperimentDefinition.</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>Engine consumes ExperimentDefinition without adaptation.</wave-follow-up>
+      <phase-follow-up>Full suite.</phase-follow-up>
+    </V-M-CONFIG>
+
+    <V-M-LOGGER MODULE="M-LOGGER" PRIORITY="high">
+      <test-files>
+        <file>src/logger/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/logger/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Marker bindings (runId, sandboxId) appear in structured output.</scenario-1>
+        <scenario-2 kind="failure">Secret-shaped fields are redacted and never appear verbatim.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Logger][createLogger][BLOCK_REDACT_FIELDS]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Redacted values must not appear in any emitted line.</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>All modules use this logger.</wave-follow-up>
+      <phase-follow-up>Sampled log review for leaked secrets.</phase-follow-up>
+    </V-M-LOGGER>
+
+    <V-M-TRACE MODULE="M-TRACE" PRIORITY="high">
+      <test-files>
+        <file>src/trace/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/trace/index.test.ts</check-1>
+        <check-2>bun x tsc --noEmit</check-2>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A raw event sequence folds into a complete RunTrace (steps, tool-calls, tokens, timings, finalOutput).</scenario-1>
+        <scenario-2 kind="success">Normalizing the same events twice yields an identical RunTrace (determinism, VF-005).</scenario-2>
+        <scenario-3 kind="failure">A malformed event surfaces TRACE_MALFORMED_EVENT without corrupting prior steps.</scenario-3>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Trace][normalizeEvents][BLOCK_NORMALIZE_EVENTS]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>RunTrace shape stays stable regardless of SDK event-shape churn (Risk-2).</assertion-1>
+        <assertion-2>diffTraces of two identical traces reports no differences.</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>OpenCode adapter feeds real events into normalizeEvents.</wave-follow-up>
+      <phase-follow-up>Full suite.</phase-follow-up>
+    </V-M-TRACE>
+
+    <V-M-SANDBOX MODULE="M-SANDBOX" PRIORITY="high">
+      <test-files>
+        <file>src/sandbox/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/sandbox/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A sandbox is provisioned and disposed cleanly (Docker faked).</scenario-1>
+        <scenario-2 kind="failure">Provision failure surfaces SANDBOX_PROVISION_FAILED and leaves no resources.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY]</marker-1>
+        <marker-2>[Sandbox][createSandbox][BLOCK_TEARDOWN]</marker-2>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>dispose() (BLOCK_TEARDOWN) runs on every path, including failure (Risk-3).</assertion-1>
+        <assertion-2>On SANDBOX_PROVISION_FAILED, no container/volume handle is returned and no orphaned resource id is logged.</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Integration with M-OPENCODE running inside the sandbox.</wave-follow-up>
+      <phase-follow-up>Live VF-003 network-vacuum and VF-004 teardown checks.</phase-follow-up>
+    </V-M-SANDBOX>
+
+    <V-M-OPENCODE MODULE="M-OPENCODE" PRIORITY="high">
+      <test-files>
+        <file>src/opencode/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/opencode/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A faked SDK session streams events that M-TRACE folds into a complete RunTrace.</scenario-1>
+        <scenario-2 kind="failure">A timeout surfaces OPENCODE_RUN_TIMEOUT with a partial-but-marked trace.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[OpenCodeAdapter][runOpenCode][BLOCK_STREAM_TRACE]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Adapter is the only SDK-aware surface; event-shape divergence triggers replan, not a RunTrace patch (Risk-2).</assertion-1>
+        <assertion-2>On OPENCODE_START_FAILED, BLOCK_STREAM_TRACE must NOT be emitted (no trace from a server that never started).</assertion-2>
+        <assertion-3>On OPENCODE_RUN_TIMEOUT, the returned RunTrace is marked partial and carries the steps captured before the deadline.</assertion-3>
+      </required-trace-assertions>
+      <wave-follow-up>Engine persists the produced RunTrace via M-STORE.</wave-follow-up>
+      <phase-follow-up>Gated live single run against a real OpenCode sandbox.</phase-follow-up>
+    </V-M-OPENCODE>
+
+    <V-M-STORE MODULE="M-STORE" PRIORITY="medium">
+      <test-files>
+        <file>src/store/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/store/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A saved run round-trips through getRun and appears in listRuns.</scenario-1>
+        <scenario-2 kind="failure">getRun on an unknown id surfaces STORE_NOT_FOUND.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[TraceStore][saveRun][BLOCK_PERSIST_RUN]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Persisted traces contain no redacted/secret values.</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>Compare reads multiple persisted runs.</wave-follow-up>
+      <phase-follow-up>Full suite.</phase-follow-up>
+    </V-M-STORE>
+
+    <V-M-ENGINE MODULE="M-ENGINE" PRIORITY="high">
+      <test-files>
+        <file>src/engine/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/engine/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">A single experiment runs end to end (deps faked) and is persisted.</scenario-1>
+        <scenario-2 kind="success">N experiments run within the concurrency bound, each isolated.</scenario-2>
+        <scenario-3 kind="failure">A failing run does not abort sibling runs and still tears its sandbox down.</scenario-3>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[ExperimentEngine][runExperiment][BLOCK_SCHEDULE_RUNS]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Concurrency never exceeds the configured bound (observe max concurrent BLOCK_SCHEDULE_RUNS in flight).</assertion-1>
+        <assertion-2>Every scheduled run reaches a terminal state and emits a teardown ([Sandbox][createSandbox][BLOCK_TEARDOWN]) exactly once.</assertion-2>
+        <assertion-3>A single run's failure must NOT prevent sibling runs from reaching BLOCK_PERSIST_RUN (no cross-run abort).</assertion-3>
+        <assertion-4>A run that failed before completion must NOT emit BLOCK_PERSIST_RUN with status=success.</assertion-4>
+      </required-trace-assertions>
+      <wave-follow-up>CLI dispatches into the engine unchanged.</wave-follow-up>
+      <phase-follow-up>VF-001, VF-002, VF-004 end to end.</phase-follow-up>
+    </V-M-ENGINE>
+
+    <V-M-CLI MODULE="M-CLI" PRIORITY="medium">
+      <test-files>
+        <file>src/cli/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/cli/index.test.ts</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">run/list/show/compare dispatch to the engine and emit parseable JSON with exit code 0.</scenario-1>
+        <scenario-2 kind="failure">Bad usage emits CLI_BAD_USAGE and a non-zero exit code.</scenario-2>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Cli][main][BLOCK_DISPATCH_COMMAND]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>stdout is machine-parseable so agents can consume results.</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>End-to-end agent-style invocation.</wave-follow-up>
+      <phase-follow-up>Full suite.</phase-follow-up>
+    </V-M-CLI>
+  </ModuleVerification>
+
+  <PhaseGates>
+    <Gate-Phase-1 PHASE="Phase-1">
+      <goal>Foundation modules have deterministic local checks with faked Docker/OpenCode seams and basic observability.</goal>
+      <commands>
+        <command-1>bun test</command-1>
+        <command-2>bun x tsc --noEmit</command-2>
+      </commands>
+      <required-evidence>
+        <evidence-1>M-CONFIG, M-LOGGER, M-TRACE, M-SANDBOX, M-OPENCODE, M-STORE have module-local checks defined and passing.</evidence-1>
+        <evidence-2>Redaction verified: no secret leaks in logs or traces.</evidence-2>
+        <evidence-3>VF-005 trace determinism passes.</evidence-3>
+      </required-evidence>
+    </Gate-Phase-1>
+    <Gate-Phase-2 PHASE="Phase-2">
+      <goal>End-to-end single and parallel runs work with bounded concurrency and guaranteed teardown.</goal>
+      <commands>
+        <command-1>bun test</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>VF-001 single-run and VF-002 parallel-isolation pass.</evidence-1>
+        <evidence-2>VF-003 network-vacuum and VF-004 teardown pass against a real sandbox (gated).</evidence-2>
+      </required-evidence>
+    </Gate-Phase-2>
+  </PhaseGates>
+
+  <AutonomyReadiness>
+    <!-- Per-module readiness for autonomous / multi-agent execution. ready = module-local checks exist, success+failure scenarios cover behavior, markers make divergence observable, and follow-up exists where local checks are insufficient. -->
+    <M-CONFIG readiness="ready">Pure validation; deterministic asserts cover success + failure; no external surface.</M-CONFIG>
+    <M-LOGGER readiness="ready">Redaction asserted by absence of secret values in captured output; no external surface.</M-LOGGER>
+    <M-TRACE readiness="ready">Pure functions; determinism (VF-005) and malformed-event handling are deterministic asserts.</M-TRACE>
+    <M-SANDBOX readiness="conditional">Module-local checks run against a Docker fake. Network-vacuum (VF-003) and teardown-on-crash (VF-004) require a gated live phase-level run before this module is trusted unattended.</M-SANDBOX>
+    <M-OPENCODE readiness="conditional">SDK faked at module level; real event-shape only proven by a gated live single run. Pre-1.0 SDK is the main replan risk.</M-OPENCODE>
+    <M-STORE readiness="ready">Round-trip and not-found are deterministic; persisted-trace redaction asserted.</M-STORE>
+    <M-ENGINE readiness="conditional">Orchestration/parallelism/isolation provable with fakes; final confidence needs VF-001/VF-002/VF-004 end to end at phase level.</M-ENGINE>
+    <M-CLI readiness="ready">Thin dispatch; parseable-stdout and exit-code contracts are deterministic.</M-CLI>
+    <required-packet-fields>module-id, write-scope, contract-excerpt, verification-excerpt, dependency-contract-summaries, stop-conditions, retry-budget — as in docs/operational-packets.xml ExecutionPacket.</required-packet-fields>
+    <required-checkpoint-fields>assumptions-kept, commands-run, evidence-captured, next-action — as in docs/operational-packets.xml CheckpointReport.</required-checkpoint-fields>
+    <gap>No live OpenCode/Docker integration evidence exists until Phase-2 gated runs; the three "conditional" modules must not be marked phase-done on faked evidence alone.</gap>
+  </AutonomyReadiness>
+
+  <FailurePackets>
+    <packet-template>
+      <expected-fields>scenario, contract-ref, expected-evidence, observed-evidence, first-divergent-block, suggested-next-action</expected-fields>
+      <aligns-with>docs/operational-packets.xml FailurePacketTemplate</aligns-with>
+    </packet-template>
+  </FailurePackets>
+</VerificationPlan>
