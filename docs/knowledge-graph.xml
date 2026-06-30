@@ -12,6 +12,10 @@
         <fn-loadExperiment PURPOSE="Parse and validate a single experiment definition" />
         <fn-expandMatrix PURPOSE="Expand a variation matrix into concrete experiment definitions" />
         <type-ExperimentDefinition PURPOSE="Validated experiment input shape" />
+        <type-ExperimentMatrix PURPOSE="Variation-matrix input shape" />
+        <type-SandboxOptions PURPOSE="Sandbox/network options for one run" />
+        <type-GraceLogger PURPOSE="Minimal structural logger interface (DI)" />
+        <class-ConfigError PURPOSE="Typed validation error carrying CONFIG_INVALID_INPUT" />
       </annotations>
     </M-CONFIG>
 
