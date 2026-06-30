@@ -223,13 +223,16 @@ function collectProviderEnv(): Record<string, string> {
 /**
  * Mount the host's OpenCode config/auth read-only into the container so the custom provider
  * (configured in the user's OpenCode setup) is available without baking secrets into the image.
+ * Only the config dir and the auth files are mounted read-only — the rest of the data dir
+ * (log, opencode.db) must stay writable for `opencode serve` to start.
  */
 function opencodeConfigMounts(): Array<{ source: string; target: string; readonly: boolean }> {
   const home = process.env.HOME;
   if (home === undefined || home.length === 0) return [];
   return [
     { source: `${home}/.config/opencode`, target: "/root/.config/opencode", readonly: true },
-    { source: `${home}/.local/share/opencode`, target: "/root/.local/share/opencode", readonly: true },
+    { source: `${home}/.local/share/opencode/auth.json`, target: "/root/.local/share/opencode/auth.json", readonly: true },
+    { source: `${home}/.local/share/opencode/account.json`, target: "/root/.local/share/opencode/account.json", readonly: true },
   ];
 }
 

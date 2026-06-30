@@ -150,7 +150,7 @@
       </notes>
     </M-SANDBOX>
 
-    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" LAYER="1" ORDER="2" STATUS="partial">
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" LAYER="1" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Drive OpenCode inside a sandbox via headless server (opencode serve) + @opencode-ai/sdk: configure system prompt/model, create a session, send the task prompt, stream raw events, and hand them to M-TRACE for normalization.</purpose>
         <inputs>
@@ -327,12 +327,12 @@
       <step-1 module="M-ENGINE" status="done" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
       <step-2 module="M-CLI" status="done" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
     </Phase-2>
-    <Phase-3 name="LiveIntegration" status="in-progress">
+    <Phase-3 name="LiveIntegration" status="done">
       <goal>Wire the two INTEGRATION seams to the real Docker + @opencode-ai/sdk surface and prove them against a live container.</goal>
       <step-1 module="M-SANDBOX" status="done" verification="V-M-SANDBOX">Publish port, resolve endpoint, readiness probe; verified live (opencode serve responds, teardown clean)</step-1>
       <step-2 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">createSdkDriver against @opencode-ai/sdk (session.create/prompt/diff, part normalization)</step-2>
       <step-3 module="M-ENGINE" status="done" verification="V-M-ENGINE">Executor publishes port 4096 and mounts host OpenCode config read-only; docker/Dockerfile image</step-3>
-      <step-4 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">Gated live LLM run (scripts/live-smoke.ts) — requires the user's configured OpenCode provider; promotes M-OPENCODE to implemented</step-4>
+      <step-4 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">Gated live LLM run passed on cpa/glm-5.2: full DF-001 flow, status=success, real tokens captured. Follow-up: capture intermediate tool steps via session.messages()/SSE</step-4>
     </Phase-3>
   </ImplementationOrder>
 

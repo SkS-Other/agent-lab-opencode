@@ -66,7 +66,7 @@
       </annotations>
     </M-SANDBOX>
 
-    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" STATUS="partial">
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Drive OpenCode (opencode serve + @opencode-ai/sdk) inside a sandbox and stream raw events to M-TRACE.</purpose>
       <path>src/opencode/index.ts</path>
       <depends>M-SANDBOX, M-TRACE, M-LOGGER</depends>
