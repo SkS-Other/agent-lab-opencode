@@ -143,6 +143,10 @@ export function buildRunArgs(spec: SandboxSpec): string[] {
     }
   }
 
+  // Tag every sandbox so orphans (e.g. if the host process is SIGKILLed) are identifiable/reapable:
+  //   docker ps -aq --filter label=agent-lab.sandbox=1 | xargs docker rm -f
+  args.push("--label", "agent-lab.sandbox=1");
+
   if (spec.publishPort !== undefined) {
     // Publish to a random host port bound to loopback only.
     args.push("-p", `127.0.0.1::${spec.publishPort}`);

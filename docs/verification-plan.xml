@@ -334,12 +334,12 @@
     <M-SANDBOX readiness="ready">Lifecycle/endpoint/teardown verified live (Phase-3). Strict vacuum (VF-007) verified live (Phase-4): iptables allowlist permits the LLM host + opencode infra, blocks everything else.</M-SANDBOX>
     <M-OPENCODE readiness="ready">Driver wired to real SDK; full DF-001 passed live on cpa/glm-5.2 (Phase-3). Phase-4 adds full-trajectory capture (VF-006).</M-OPENCODE>
     <M-STORE readiness="ready">Round-trip and not-found are deterministic; persisted-trace redaction asserted.</M-STORE>
-    <M-ENGINE readiness="ready">Orchestration/parallelism/isolation proven with fakes and confirmed end to end via the live Phase-3 run.</M-ENGINE>
-    <M-CLI readiness="ready">Thin dispatch; parseable-stdout and exit-code contracts are deterministic.</M-CLI>
-    <M-MCP readiness="ready">Tool dispatch tested with injected engine fns; real stdio handshake verified (initialize + tools/list return the 4 tools with zod-derived schemas).</M-MCP>
+    <M-ENGINE readiness="ready">Orchestration proven with fakes and live: parallel runs overlap with full isolation and 0 orphans; timeout yields a partial trace; container crash mid-run is handled gracefully with guaranteed teardown (VF-002, VF-004).</M-ENGINE>
+    <M-CLI readiness="ready">Thin dispatch; parseable-stdout and exit-code contracts are deterministic. list/show/compare and run --from replay verified live on real traces.</M-CLI>
+    <M-MCP readiness="ready">Tool dispatch tested with injected engine fns; live over real stdio: initialize, tools/list, list_runs, compare_runs, and run_experiment (launching a real container) all verified.</M-MCP>
     <required-packet-fields>module-id, write-scope, contract-excerpt, verification-excerpt, dependency-contract-summaries, stop-conditions, retry-budget — as in docs/operational-packets.xml ExecutionPacket.</required-packet-fields>
     <required-checkpoint-fields>assumptions-kept, commands-run, evidence-captured, next-action — as in docs/operational-packets.xml CheckpointReport.</required-checkpoint-fields>
-    <gap>Strict network vacuum (VF-007) and full-trajectory capture (VF-006) are Phase-4; M-MCP needs a real MCP-client smoke before it is trusted unattended.</gap>
+    <gap>All module and flow paths are live-verified (single/parallel runs, vacuum, full trajectory, timeout, crash teardown, MCP-over-stdio incl. run_experiment, CLI replay). Residual: teardown is NOT guaranteed if the agent-lab host process itself is hard-killed (SIGKILL) mid-run — a label-based orphan reaper is a future hardening. Known vacuum caveats: IPv6 only reachable under non-default docker IPv6; DNS exfil to the configured resolver remains theoretically possible.</gap>
   </AutonomyReadiness>
 
   <FailurePackets>
