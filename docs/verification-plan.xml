@@ -77,6 +77,7 @@
       </scenarios>
       <required-log-markers>
         <marker-1>[Config][loadExperiment][BLOCK_VALIDATE_INPUT]</marker-1>
+        <marker-2>[Config][expandMatrix][BLOCK_EXPAND_MATRIX]</marker-2>
       </required-log-markers>
       <required-trace-assertions>
         <assertion-1>Invalid input must not produce a partial ExperimentDefinition.</assertion-1>
