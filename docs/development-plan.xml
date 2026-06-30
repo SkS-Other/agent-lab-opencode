@@ -3,7 +3,8 @@
     <objective>A CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker ("vacuum"), capture and compare agent behavior. Agents are the primary callers.</objective>
     <objective>Keep a hard seam between the core engine and the interface so the CLI (v1) can be joined later by MCP/HTTP without touching the engine.</objective>
     <objective>Isolate every OpenCode and Docker interaction behind a single adapter module each; keep the trace schema independent of the OpenCode SDK by normalizing in M-TRACE.</objective>
-    <non-goal>No universal multi-agent backend, no cloud sandbox provider, no MCP/HTTP, no rich human UI in v1.</non-goal>
+    <non-goal>No universal multi-agent backend, no cloud sandbox provider, no rich human UI in v1.</non-goal>
+    <note-mcp>Phase-4 adds an MCP stdio interface (M-MCP) as the primary agent-facing entry point, mirroring M-CLI over the same engine. HTTP remains out of scope.</note-mcp>
     <risk-1>Network "vacuum" vs. required LLM egress — the allowlist must be exact and verified by a flow (VF-003).</risk-1>
     <risk-2>OpenCode SDK is pre-1.0; the M-OPENCODE adapter is the only place that knows its surface, and RunTrace lives in M-TRACE so SDK churn triggers replan, not a schema patch.</risk-2>
     <risk-3>Container lifecycle leaks on crash/timeout; teardown must be guaranteed and observable (VF-004).</risk-3>
@@ -147,6 +148,7 @@
       <notes>
         <note-1>The only module that knows Docker. Decision dockerode vs. docker CLI deferred to execution.</note-1>
         <note-2>Teardown (BLOCK_TEARDOWN) must run on every path, including failure (Risk-3). Provider key injected via env (decision-OQ2).</note-2>
+        <note-3>Phase-4: strict 'vacuum' network mode = tinyproxy sidecar with a domain allowlist (cpa.funxyz.fun, models.dev, opencode.ai) + main container on an internal docker network + HTTPS_PROXY. Teardown must remove the sidecar and network too (no leak). Default stays 'open' bridge.</note-3>
       </notes>
     </M-SANDBOX>
 
@@ -182,6 +184,7 @@
         <note-1>Single point of contact with the OpenCode SDK/server (Risk-2). On event-shape divergence, replan rather than patch RunTrace.</note-1>
         <note-2>On timeout, returns a partial-but-marked trace (OPENCODE_RUN_TIMEOUT).</note-2>
         <note-3>createSdkDriver wired to real @opencode-ai/sdk and tested on a fake client; serve/endpoint infra verified live. STATUS stays partial until a gated live LLM prompt run completes (Phase-3 step-4, needs user provider).</note-3>
+        <note-4>Phase-4: after prompt resolves, re-read session.messages() to capture the FULL trajectory (all tool calls + assistant texts, per-message tokens), not just the final message. ToolPart.state.status drives ok; RawEvent may carry tool input/output summaries.</note-4>
       </notes>
     </M-OPENCODE>
 
@@ -285,6 +288,38 @@
         <note-1>Thin layer over M-ENGINE; no business logic here so MCP/HTTP can mirror it later. Supports run --from &lt;runId&gt; replay (decision-OQ6).</note-1>
       </notes>
     </M-CLI>
+
+    <M-MCP NAME="Mcp" TYPE="ENTRY_POINT" LAYER="3" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Expose the engine to agents over the Model Context Protocol (stdio) as tools: run_experiment, list_runs, get_run, compare_runs. This is the primary agent-facing interface.</purpose>
+        <inputs>
+          <param name="toolCall" type="MCP tool invocation with zod-validated args" />
+        </inputs>
+        <outputs>
+          <param name="toolResult" type="{ content: [{ type: 'text', text }], structuredContent }" />
+        </outputs>
+        <errors>
+          <error code="MCP_TOOL_FAILED" />
+        </errors>
+      </contract>
+      <interface>
+        <export-createMcpServer PURPOSE="Build the McpServer with engine-backed tools (testable without stdio)" />
+        <export-main PURPOSE="Connect the server over StdioServerTransport" />
+      </interface>
+      <depends>M-ENGINE, M-CONFIG, M-STORE, M-LOGGER</depends>
+      <target>
+        <source>src/mcp/index.ts</source>
+        <tests>src/mcp/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Mcp]</log-prefix>
+        <critical-block>BLOCK_HANDLE_TOOL</critical-block>
+      </observability>
+      <verification-ref>V-M-MCP</verification-ref>
+      <notes>
+        <note-1>Thin layer over M-ENGINE/M-STORE, mirroring M-CLI; @modelcontextprotocol/sdk + zod input schemas. Logs go to stderr (stdout is the MCP transport).</note-1>
+      </notes>
+    </M-MCP>
   </Modules>
 
   <DataFlow>
@@ -327,6 +362,12 @@
       <step-1 module="M-ENGINE" status="done" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
       <step-2 module="M-CLI" status="done" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
     </Phase-2>
+    <Phase-4 name="Enhancements" status="in-progress">
+      <goal>Capture the full agent trajectory, expose the engine over MCP, and add a strict network vacuum.</goal>
+      <step-1 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">Full trace: re-read session.messages() to capture all tool calls + assistant texts with per-message tokens</step-1>
+      <step-2 module="M-MCP" status="pending" verification="V-M-MCP">MCP stdio server exposing run_experiment/list_runs/get_run/compare_runs over the engine</step-2>
+      <step-3 module="M-SANDBOX" status="pending" verification="V-M-SANDBOX">Strict vacuum network mode: tinyproxy sidecar + internal network + domain allowlist (VF-003), guaranteed sidecar teardown</step-3>
+    </Phase-4>
     <Phase-3 name="LiveIntegration" status="done">
       <goal>Wire the two INTEGRATION seams to the real Docker + @opencode-ai/sdk surface and prove them against a live container.</goal>
       <step-1 module="M-SANDBOX" status="done" verification="V-M-SANDBOX">Publish port, resolve endpoint, readiness probe; verified live (opencode serve responds, teardown clean)</step-1>
