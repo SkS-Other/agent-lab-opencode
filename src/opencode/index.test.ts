@@ -154,11 +154,81 @@ describe("runOpenCode", () => {
 });
 
 describe("createSdkDriver", () => {
-  // The live driver is intentionally not wired at module level (phase-level integration).
-  test("start() reports unwired live driver via OPENCODE_START_FAILED", async () => {
-    const driver = createSdkDriver();
-    await expect(
-      driver.start({ sandbox: fakeSandbox, systemPrompt: "x", model: "a/b" }),
-    ).rejects.toBeInstanceOf(OpenCodeError);
+  const sandboxWithEndpoint: SandboxHandle = { ...fakeSandbox, endpoint: "http://127.0.0.1:49153" };
+
+  /** Build a fake OpencodeClient capturing prompt calls and returning scripted parts. */
+  function fakeClient(parts: unknown[], info?: { tokens: { input: number; output: number } }) {
+    const calls: { prompt?: unknown } = {};
+    const client = {
+      session: {
+        async create() {
+          return { data: { id: "sess-1" } };
+        },
+        async prompt(opts: unknown) {
+          calls.prompt = opts;
+          return { data: { info, parts } };
+        },
+        async diff() {
+          return { data: [{ path: "a.ts", diff: "@@ -1 +1 @@" }] };
+        },
+        async abort() {
+          return { data: true };
+        },
+      },
+    };
+    return { client: client as never, calls };
+  }
+
+  test("requires a sandbox endpoint", async () => {
+    const driver = createSdkDriver({ connect: () => ({}) as never });
+    await expect(driver.start({ sandbox: fakeSandbox, systemPrompt: "x", model: "a/b" })).rejects.toBeInstanceOf(
+      OpenCodeError,
+    );
+  });
+
+  test("creates a session, prompts with split model + system, and normalizes parts", async () => {
+    const { client, calls } = fakeClient(
+      [
+        { type: "text", text: "let me edit", synthetic: false },
+        { type: "tool", tool: "edit", state: { status: "completed" } },
+        { type: "tool", tool: "bash", state: { status: "error" } },
+      ],
+      { tokens: { input: 100, output: 40 } },
+    );
+    const driver = createSdkDriver({ connect: () => client });
+    const session = await driver.start({
+      sandbox: sandboxWithEndpoint,
+      systemPrompt: "be careful",
+      model: "anthropic/claude-opus-4-8",
+    });
+
+    const sink: RawEvent[] = [];
+    const final = await session.stream("do the task", sink, new AbortController().signal);
+
+    // model split + system propagated
+    const body = (calls.prompt as { body: { model: { providerID: string; modelID: string }; system: string } }).body;
+    expect(body.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-8" });
+    expect(body.system).toBe("be careful");
+
+    // parts normalized: 1 message + 2 tool calls, tool error flagged
+    expect(sink).toHaveLength(3);
+    expect(sink[0]).toMatchObject({ type: "message", role: "assistant", tokens: { input: 100, output: 40 } });
+    expect(sink[2]).toMatchObject({ type: "tool_call", tool: "bash", ok: false });
+    expect(final.finalOutputText).toBe("let me edit");
+    expect(final.gitDiff).toContain("@@");
+  });
+
+  test("end-to-end through runOpenCode with the live driver shape", async () => {
+    const { client } = fakeClient([{ type: "text", text: "all done", synthetic: false }], {
+      tokens: { input: 5, output: 3 },
+    });
+    const driver = createSdkDriver({ connect: () => client });
+    const trace = await runOpenCode(baseInput({ sandbox: sandboxWithEndpoint }), {
+      logger: createLogger({ level: "silent" }),
+      driver,
+    });
+    expect(trace.status).toBe("success");
+    expect(trace.tokenUsage.total).toBe(8);
+    expect(trace.finalOutput.text).toBe("all done");
   });
 });
