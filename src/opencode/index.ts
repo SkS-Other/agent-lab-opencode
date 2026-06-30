@@ -262,16 +262,20 @@ async function collectTrajectory(client: OpencodeClient, sessionId: string, prom
   return messageToEvents({ info: promptResult.info, parts: promptResult.parts });
 }
 
-/** Map one OpenCode message (info + parts) to ordered RawEvents; attach tokens once per message. */
+/**
+ * Map one OpenCode message (info + parts) to ordered RawEvents; attach tokens once per message.
+ * Only assistant messages are agent steps — user messages (the task prompt) are skipped so they
+ * do not pollute the trajectory/step counts (OpenCode Message is only user | assistant).
+ */
 function messageToEvents(message: OpenCodeMessage): RawEvent[] {
-  const role: "assistant" | "tool" = message.info?.role === "assistant" ? "assistant" : "tool";
-  const tokens = message.info?.role === "assistant" ? message.info?.tokens : undefined;
+  if (message.info?.role !== "assistant") return [];
+  const tokens = message.info?.tokens;
   const events: RawEvent[] = [];
   let tokensAttached = false;
   for (const part of message.parts ?? []) {
     let ev: RawEvent | undefined;
     if (part.type === "text" && part.synthetic !== true && typeof part.text === "string" && part.text.length > 0) {
-      ev = { type: "message", role, text: part.text };
+      ev = { type: "message", role: "assistant", text: part.text };
     } else if (part.type === "tool" && typeof part.tool === "string") {
       ev = { type: "tool_call", tool: part.tool, ok: part.state?.status !== "error" };
     }
