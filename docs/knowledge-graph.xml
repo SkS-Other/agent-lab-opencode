@@ -55,7 +55,13 @@
       <verification-ref>V-M-SANDBOX</verification-ref>
       <annotations>
         <fn-createSandbox PURPOSE="Provision an isolated container and return a handle" />
+        <fn-withSandbox PURPOSE="Run a function with a sandbox and guarantee teardown (VF-004)" />
+        <fn-buildRunArgs PURPOSE="Pure: translate a SandboxSpec into docker run args (network policy)" />
+        <fn-createDockerEngine PURPOSE="Real DockerEngine backed by the docker CLI" />
         <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (exec, dispose)" />
+        <type-SandboxSpec PURPOSE="Image, network allowlist, env, mounts, resource limits" />
+        <type-DockerEngine PURPOSE="Injectable container backend (faked in tests)" />
+        <class-SandboxError PURPOSE="Typed error: PROVISION_FAILED | TEARDOWN_FAILED" />
       </annotations>
     </M-SANDBOX>
 
