@@ -60,6 +60,24 @@
         <trace-sequence>BLOCK_NORMALIZE_EVENTS -> stable RunTrace</trace-sequence>
       </required-signals>
     </VF-005>
+
+    <VF-006 NAME="FullTrajectory" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>An agent run that uses tools is captured via session.messages() after prompt.</scenario>
+      <expected-outcome>The RunTrace contains every tool call and assistant text in order (not only the final message), with per-message tokens summed.</expected-outcome>
+      <required-signals>
+        <log-marker>[OpenCodeAdapter][runOpenCode][BLOCK_STREAM_TRACE]</log-marker>
+        <trace-sequence>messages[] -> parts[] -> ordered steps (tool_call + message)</trace-sequence>
+      </required-signals>
+    </VF-006>
+
+    <VF-007 NAME="StrictNetworkVacuum" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="medium">
+      <scenario>A run uses the strict vacuum network mode (proxy sidecar + internal network).</scenario>
+      <expected-outcome>Allowlisted hosts (LLM endpoint, models.dev) are reachable via the proxy; non-allowlisted egress is denied; sidecar and network are torn down with the run.</expected-outcome>
+      <required-signals>
+        <log-marker>[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY]</log-marker>
+        <trace-sequence>proxy up -> main on internal net -> allowlist enforced -> sidecar + network removed</trace-sequence>
+      </required-signals>
+    </VF-007>
   </CriticalFlows>
 
   <ModuleVerification>
@@ -245,6 +263,30 @@
       <wave-follow-up>End-to-end agent-style invocation.</wave-follow-up>
       <phase-follow-up>Full suite.</phase-follow-up>
     </V-M-CLI>
+
+    <V-M-MCP MODULE="M-MCP" PRIORITY="medium">
+      <test-files>
+        <file>src/mcp/index.test.ts</file>
+      </test-files>
+      <module-checks>
+        <check-1>bun test src/mcp/index.test.ts</check-1>
+        <check-2>bun x tsc --noEmit</check-2>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Each tool (run_experiment/list_runs/get_run/compare_runs) dispatches to the engine and returns a text+structured result.</scenario-1>
+        <scenario-2 kind="failure">A tool error surfaces MCP_TOOL_FAILED in the result rather than crashing the server.</scenario-2>
+        <scenario-3 kind="success">zod input schema rejects malformed args before the engine is touched.</scenario-3>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Mcp][handleTool][BLOCK_HANDLE_TOOL]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Logs go to stderr; stdout stays a clean MCP transport.</assertion-1>
+        <assertion-2>createMcpServer is testable without a real stdio transport (engine fns injected).</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Tool surface mirrors the CLI over the same engine.</wave-follow-up>
+      <phase-follow-up>Full suite.</phase-follow-up>
+    </V-M-MCP>
   </ModuleVerification>
 
   <PhaseGates>
@@ -270,6 +312,18 @@
         <evidence-2>VF-003 network-vacuum and VF-004 teardown pass against a real sandbox (gated).</evidence-2>
       </required-evidence>
     </Gate-Phase-2>
+    <Gate-Phase-4 PHASE="Phase-4">
+      <goal>Full trajectory capture, MCP interface, and strict network vacuum landed with deterministic module checks.</goal>
+      <commands>
+        <command-1>bun test</command-1>
+        <command-2>bun x tsc --noEmit</command-2>
+      </commands>
+      <required-evidence>
+        <evidence-1>VF-006 full-trajectory: a multi-step run records all tool calls + messages (verified live).</evidence-1>
+        <evidence-2>M-MCP tool dispatch tested with injected engine; real MCP-client smoke noted.</evidence-2>
+        <evidence-3>VF-007 strict vacuum: allowlisted reachable, others denied, sidecar+network torn down.</evidence-3>
+      </required-evidence>
+    </Gate-Phase-4>
   </PhaseGates>
 
   <AutonomyReadiness>
@@ -277,14 +331,15 @@
     <M-CONFIG readiness="ready">Pure validation; deterministic asserts cover success + failure; no external surface.</M-CONFIG>
     <M-LOGGER readiness="ready">Redaction asserted by absence of secret values in captured output; no external surface.</M-LOGGER>
     <M-TRACE readiness="ready">Pure functions; determinism (VF-005) and malformed-event handling are deterministic asserts.</M-TRACE>
-    <M-SANDBOX readiness="conditional">Module-local checks run against a Docker fake. Network-vacuum (VF-003) and teardown-on-crash (VF-004) require a gated live phase-level run before this module is trusted unattended.</M-SANDBOX>
-    <M-OPENCODE readiness="conditional">SDK faked at module level; real event-shape only proven by a gated live single run. Pre-1.0 SDK is the main replan risk.</M-OPENCODE>
+    <M-SANDBOX readiness="ready">Lifecycle/endpoint/teardown verified live in Phase-3 (serve responds, clean teardown). Strict vacuum (VF-007) is the remaining Phase-4 hardening; default open bridge works.</M-SANDBOX>
+    <M-OPENCODE readiness="ready">Driver wired to real SDK; full DF-001 passed live on cpa/glm-5.2 (Phase-3). Phase-4 adds full-trajectory capture (VF-006).</M-OPENCODE>
     <M-STORE readiness="ready">Round-trip and not-found are deterministic; persisted-trace redaction asserted.</M-STORE>
-    <M-ENGINE readiness="conditional">Orchestration/parallelism/isolation provable with fakes; final confidence needs VF-001/VF-002/VF-004 end to end at phase level.</M-ENGINE>
+    <M-ENGINE readiness="ready">Orchestration/parallelism/isolation proven with fakes and confirmed end to end via the live Phase-3 run.</M-ENGINE>
     <M-CLI readiness="ready">Thin dispatch; parseable-stdout and exit-code contracts are deterministic.</M-CLI>
+    <M-MCP readiness="conditional">Tool dispatch testable with injected engine fns; real stdio/agent-handshake proven by a manual MCP-client smoke (Phase-4 follow-up).</M-MCP>
     <required-packet-fields>module-id, write-scope, contract-excerpt, verification-excerpt, dependency-contract-summaries, stop-conditions, retry-budget — as in docs/operational-packets.xml ExecutionPacket.</required-packet-fields>
     <required-checkpoint-fields>assumptions-kept, commands-run, evidence-captured, next-action — as in docs/operational-packets.xml CheckpointReport.</required-checkpoint-fields>
-    <gap>No live OpenCode/Docker integration evidence exists until Phase-2 gated runs; the three "conditional" modules must not be marked phase-done on faked evidence alone.</gap>
+    <gap>Strict network vacuum (VF-007) and full-trajectory capture (VF-006) are Phase-4; M-MCP needs a real MCP-client smoke before it is trusted unattended.</gap>
   </AutonomyReadiness>
 
   <FailurePackets>

@@ -127,7 +127,23 @@
       </annotations>
     </M-CLI>
 
+    <M-MCP NAME="Mcp" TYPE="ENTRY_POINT" STATUS="planned">
+      <purpose>Expose the engine to agents over MCP (stdio) as tools: run_experiment, list_runs, get_run, compare_runs.</purpose>
+      <path>src/mcp/index.ts</path>
+      <depends>M-ENGINE, M-CONFIG, M-STORE, M-LOGGER</depends>
+      <verification-ref>V-M-MCP</verification-ref>
+      <annotations>
+        <fn-createMcpServer PURPOSE="Build the McpServer with engine-backed tools (testable without stdio)" />
+        <fn-main PURPOSE="Connect the server over StdioServerTransport" />
+        <type-McpDeps PURPOSE="Injectable ports (logger, store, engine fns)" />
+      </annotations>
+    </M-MCP>
+
     <CrossLink from="M-CLI" to="M-ENGINE" relation="invokes" />
+    <CrossLink from="M-MCP" to="M-ENGINE" relation="invokes" />
+    <CrossLink from="M-MCP" to="M-STORE" relation="reads via" />
+    <CrossLink from="M-MCP" to="M-CONFIG" relation="uses" />
+    <CrossLink from="M-MCP" to="M-LOGGER" relation="uses" />
     <CrossLink from="M-CLI" to="M-CONFIG" relation="uses" />
     <CrossLink from="M-CLI" to="M-LOGGER" relation="uses" />
     <CrossLink from="M-ENGINE" to="M-CONFIG" relation="uses" />

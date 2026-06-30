@@ -51,11 +51,21 @@
       <Priority>low</Priority>
       <RelatedFlows>DF-001</RelatedFlows>
     </UC-004>
+
+    <UC-005>
+      <Actor>Agent</Actor>
+      <Action>Invokes Agent Lab as MCP tools (run_experiment, list_runs, get_run, compare_runs)</Action>
+      <Goal>To call the tool natively over the Model Context Protocol without a shell</Goal>
+      <Preconditions>An MCP-capable agent connects to the agent-lab MCP server over stdio.</Preconditions>
+      <AcceptanceCriteria>Each tool dispatches to the same engine as the CLI, validates args, and returns text + structured results; this is the primary agent-facing interface.</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-001, DF-003</RelatedFlows>
+    </UC-005>
   </UseCases>
 
   <NonGoals>
     <item-1>No multi-agent backend in v1 — the tool is built around OpenCode specifically, not a universal agent adapter.</item-1>
-    <item-2>No MCP or HTTP interface in v1 — CLI only. The core engine is kept separate so MCP/HTTP can wrap it later.</item-2>
+    <item-2>No HTTP interface in v1. MCP (stdio) is added in Phase-4 as the primary agent-facing interface; the core engine stays separate so HTTP could wrap it later.</item-2>
     <item-3>No rich human UI/dashboard in v1 — humans are a secondary concern.</item-3>
     <item-4>No dependency on third-party sandbox/agent-runner products (vibekit, rivet sandbox-agent, E2B, Daytona) as the foundation; ideas may be borrowed, but the core is owned.</item-4>
     <item-5>No production multi-tenant scaling concerns in v1 (single-host, local Docker).</item-5>
