@@ -229,8 +229,9 @@ describe("createSdkDriver", () => {
   test("captures all steps across multiple messages with per-message tokens", async () => {
     const { client } = fakeClient({
       messages: [
+        // user prompt message must be skipped, not recorded as a step
+        { info: { role: "user" }, parts: [{ type: "text", text: "do the task", synthetic: false }] },
         { info: { role: "assistant", tokens: { input: 50, output: 10 } }, parts: [{ type: "tool", tool: "read", state: { status: "completed" } }] },
-        { info: { role: "tool" }, parts: [{ type: "text", text: "file contents", synthetic: false }] },
         { info: { role: "assistant", tokens: { input: 60, output: 20 } }, parts: [{ type: "text", text: "final answer", synthetic: false }] },
       ],
     });
@@ -239,7 +240,8 @@ describe("createSdkDriver", () => {
     const sink: RawEvent[] = [];
     const final = await session.stream("t", sink, new AbortController().signal);
 
-    expect(sink.map((e) => e.type)).toEqual(["tool_call", "message", "message"]);
+    expect(sink.map((e) => e.type)).toEqual(["tool_call", "message"]); // user message skipped
+    expect(sink.every((e) => e.type !== "message" || e.role === "assistant")).toBe(true);
     expect(sink[0]).toMatchObject({ tool: "read", tokens: { input: 50, output: 10 } });
     expect(final.finalOutputText).toBe("final answer"); // last assistant text
   });
