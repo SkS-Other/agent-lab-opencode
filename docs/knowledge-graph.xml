@@ -58,9 +58,10 @@
         <fn-withSandbox PURPOSE="Run a function with a sandbox and guarantee teardown (VF-004)" />
         <fn-buildRunArgs PURPOSE="Pure: translate a SandboxSpec into docker run args (network policy)" />
         <fn-createDockerEngine PURPOSE="Real DockerEngine backed by the docker CLI" />
-        <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (exec, dispose)" />
-        <type-SandboxSpec PURPOSE="Image, network allowlist, env, mounts, resource limits" />
-        <type-DockerEngine PURPOSE="Injectable container backend (faked in tests)" />
+        <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (endpoint?, exec, dispose)" />
+        <type-SandboxSpec PURPOSE="Image, network allowlist, env, mounts, resource limits, publishPort" />
+        <type-DockerEngine PURPOSE="Injectable container backend with port resolution (faked in tests)" />
+        <type-ReadyProbe PURPOSE="Injectable endpoint readiness probe" />
         <class-SandboxError PURPOSE="Typed error: PROVISION_FAILED | TEARDOWN_FAILED" />
       </annotations>
     </M-SANDBOX>
