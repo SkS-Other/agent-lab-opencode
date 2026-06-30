@@ -16,7 +16,7 @@
   </ArchitectureNotes>
 
   <Modules>
-    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Parse and validate an experiment definition from CLI args and/or a config file, and expand a variation matrix into concrete experiment definitions.</purpose>
         <inputs>
@@ -50,7 +50,7 @@
       </notes>
     </M-CONFIG>
 
-    <M-LOGGER NAME="Logger" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+    <M-LOGGER NAME="Logger" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Structured logging with stable marker fields and secret redaction, shared by all modules.</purpose>
         <inputs>
@@ -79,7 +79,7 @@
       </notes>
     </M-LOGGER>
 
-    <M-TRACE NAME="Trace" TYPE="UTILITY" LAYER="0" ORDER="3" STATUS="planned">
+    <M-TRACE NAME="Trace" TYPE="UTILITY" LAYER="0" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>Normalize raw OpenCode session events into a stable RunTrace schema and diff two traces, independent of the OpenCode SDK surface.</purpose>
         <inputs>
@@ -116,7 +116,7 @@
       </notes>
     </M-TRACE>
 
-    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" LAYER="1" ORDER="1" STATUS="planned">
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" LAYER="1" ORDER="1" STATUS="partial">
       <contract>
         <purpose>Provision and tear down an isolated Docker container per run ("vacuum"): isolated filesystem, deny-by-default network with an explicit LLM-endpoint allowlist, guaranteed cleanup.</purpose>
         <inputs>
@@ -150,7 +150,7 @@
       </notes>
     </M-SANDBOX>
 
-    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" LAYER="1" ORDER="2" STATUS="planned">
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" LAYER="1" ORDER="2" STATUS="partial">
       <contract>
         <purpose>Drive OpenCode inside a sandbox via headless server (opencode serve) + @opencode-ai/sdk: configure system prompt/model, create a session, send the task prompt, stream raw events, and hand them to M-TRACE for normalization.</purpose>
         <inputs>
@@ -184,7 +184,7 @@
       </notes>
     </M-OPENCODE>
 
-    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" LAYER="1" ORDER="3" STATUS="planned">
+    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" LAYER="1" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>Persist and retrieve experiment runs and their traces as flat JSON under runs/&lt;runId&gt;/; support listing and loading for comparison and replay.</purpose>
         <inputs>
@@ -312,14 +312,14 @@
   </DataFlow>
 
   <ImplementationOrder>
-    <Phase-1 name="Foundation" status="pending">
+    <Phase-1 name="Foundation" status="done">
       <goal>Deterministic L0 utilities as pure testable cores, then the two external seams (sandbox, OpenCode) and persistence behind fakes.</goal>
-      <step-1 module="M-CONFIG" status="pending" verification="V-M-CONFIG">Experiment definition parsing, validation, matrix expansion</step-1>
-      <step-2 module="M-LOGGER" status="pending" verification="V-M-LOGGER">Structured logger with redaction</step-2>
-      <step-3 module="M-TRACE" status="pending" verification="V-M-TRACE">RunTrace normalization and diff (pure functions)</step-3>
-      <step-4 module="M-SANDBOX" status="pending" verification="V-M-SANDBOX">Docker sandbox lifecycle with network policy and guaranteed teardown</step-4>
-      <step-5 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">OpenCode adapter feeding M-TRACE</step-5>
-      <step-6 module="M-STORE" status="pending" verification="V-M-STORE">Flat-JSON run/trace persistence</step-6>
+      <step-1 module="M-CONFIG" status="done" verification="V-M-CONFIG">Experiment definition parsing, validation, matrix expansion</step-1>
+      <step-2 module="M-LOGGER" status="done" verification="V-M-LOGGER">Structured logger with redaction</step-2>
+      <step-3 module="M-TRACE" status="done" verification="V-M-TRACE">RunTrace normalization and diff (pure functions)</step-3>
+      <step-4 module="M-SANDBOX" status="done" verification="V-M-SANDBOX">Docker sandbox lifecycle with network policy and guaranteed teardown (module-level on fake engine; live network/teardown gated to phase-level)</step-4>
+      <step-5 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">OpenCode adapter feeding M-TRACE (module-level on fake driver; live @opencode-ai/sdk wiring gated to phase-level)</step-5>
+      <step-6 module="M-STORE" status="done" verification="V-M-STORE">Flat-JSON run/trace persistence</step-6>
     </Phase-1>
     <Phase-2 name="Orchestration" status="pending">
       <goal>End-to-end single and parallel experiment runs with bounded concurrency, guaranteed cleanup, and comparison.</goal>

@@ -13,10 +13,15 @@
 //   normalizeEvents - fold raw OpenCode events into a deterministic RunTrace
 //   diffTraces - structurally compare two RunTraces
 //   RunTrace - stable normalized trace (steps, tokenUsage, finalOutput, status, timings)
+//   RunTraceInput - run-level facts passed into normalizeEvents
 //   RunStep - one normalized step (message or tool call)
+//   RunStatus - success | error | timeout
+//   TokenUsage - input/output/total token counts
 //   TraceDiff - structured behavior/outcome comparison
 //   RawEvent - minimal shape M-OPENCODE feeds in
 //   TraceError - typed error carrying TRACE_MALFORMED_EVENT
+//   TRACE_MALFORMED_EVENT - stable error code constant
+//   GraceLogger - minimal structural logger interface (DI; keeps DEPENDS=none)
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY

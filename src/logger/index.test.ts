@@ -12,6 +12,10 @@
 // START_MODULE_MAP
 //   collectLines - in-memory pino destination capturing parsed log objects
 // END_MODULE_MAP
+//
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.0.0 - Initial M-LOGGER tests (bindings, redaction, marker).
+// END_CHANGE_SUMMARY
 
 import { describe, expect, test } from "bun:test";
 import { createLogger, REDACTED_VALUE } from "./index.ts";

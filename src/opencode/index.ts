@@ -13,9 +13,13 @@
 //   runOpenCode - run one OpenCode session under a deadline and return its RunTrace
 //   OpenCodeDriver - injectable port: start a session (faked in tests)
 //   OpenCodeSession - injectable port: stream events for a task prompt
+//   OpenCodeStartInput - input to OpenCodeDriver.start (sandbox, systemPrompt, model)
 //   createSdkDriver - real driver backed by @opencode-ai/sdk (live wiring is phase-level)
 //   RunOpenCodeInput - run-scoped inputs (no M-CONFIG coupling)
+//   RunOpenCodeDeps - { logger, driver?, now? } for runOpenCode
 //   OpenCodeError - typed error (OPENCODE_START_FAILED | OPENCODE_RUN_TIMEOUT)
+//   OPENCODE_START_FAILED - stable error code constant
+//   OPENCODE_RUN_TIMEOUT - stable error code constant
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY

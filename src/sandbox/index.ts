@@ -15,9 +15,14 @@
 //   buildRunArgs - pure: translate a SandboxSpec into docker run arguments (network policy)
 //   createDockerEngine - real DockerEngine backed by the docker CLI via Bun.spawn
 //   SandboxSpec - image, network allowlist, env, mounts, resource limits
+//   SandboxMount - one source->target mount
 //   SandboxHandle - { sandboxId, exec, dispose }
+//   ExecResult - { stdout, stderr, exitCode }
 //   DockerEngine - injectable container backend (faked in tests)
+//   SandboxDeps - { logger, engine? } for createSandbox/withSandbox
 //   SandboxError - typed error (SANDBOX_PROVISION_FAILED | SANDBOX_TEARDOWN_FAILED)
+//   SANDBOX_PROVISION_FAILED - stable error code constant
+//   SANDBOX_TEARDOWN_FAILED - stable error code constant
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY

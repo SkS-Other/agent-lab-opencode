@@ -11,9 +11,11 @@
 //
 // START_MODULE_MAP
 //   createLogger - build a child logger with redaction + marker bindings
+//   CreateLoggerOptions - options for createLogger (bindings, level, destination, redactPaths)
 //   LogBindings - stable marker fields bound to every line
 //   Logger - re-exported pino.Logger type for downstream modules
 //   REDACTED_PATHS - default redaction paths (secrets never logged)
+//   REDACTED_VALUE - censor token substituted for redacted values
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
