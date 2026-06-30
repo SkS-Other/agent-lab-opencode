@@ -289,7 +289,7 @@
       </notes>
     </M-CLI>
 
-    <M-MCP NAME="Mcp" TYPE="ENTRY_POINT" LAYER="3" ORDER="2" STATUS="planned">
+    <M-MCP NAME="Mcp" TYPE="ENTRY_POINT" LAYER="3" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Expose the engine to agents over the Model Context Protocol (stdio) as tools: run_experiment, list_runs, get_run, compare_runs. This is the primary agent-facing interface.</purpose>
         <inputs>
@@ -364,8 +364,8 @@
     </Phase-2>
     <Phase-4 name="Enhancements" status="in-progress">
       <goal>Capture the full agent trajectory, expose the engine over MCP, and add a strict network vacuum.</goal>
-      <step-1 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">Full trace: re-read session.messages() to capture all tool calls + assistant texts with per-message tokens</step-1>
-      <step-2 module="M-MCP" status="pending" verification="V-M-MCP">MCP stdio server exposing run_experiment/list_runs/get_run/compare_runs over the engine</step-2>
+      <step-1 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">Full trace: re-read session.messages() to capture all tool calls + assistant texts with per-message tokens</step-1>
+      <step-2 module="M-MCP" status="done" verification="V-M-MCP">MCP stdio server exposing run_experiment/list_runs/get_run/compare_runs over the engine (stdio smoke: initialize + tools/list verified)</step-2>
       <step-3 module="M-SANDBOX" status="pending" verification="V-M-SANDBOX">Strict vacuum network mode: tinyproxy sidecar + internal network + domain allowlist (VF-003), guaranteed sidecar teardown</step-3>
     </Phase-4>
     <Phase-3 name="LiveIntegration" status="done">
