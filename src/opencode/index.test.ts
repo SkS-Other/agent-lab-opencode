@@ -156,17 +156,22 @@ describe("runOpenCode", () => {
 describe("createSdkDriver", () => {
   const sandboxWithEndpoint: SandboxHandle = { ...fakeSandbox, endpoint: "http://127.0.0.1:49153" };
 
-  /** Build a fake OpencodeClient capturing prompt calls and returning scripted parts. */
-  function fakeClient(parts: unknown[], info?: { tokens: { input: number; output: number } }) {
+  type Msg = { info?: { role?: string; tokens?: { input: number; output: number } }; parts: unknown[] };
+
+  /** Build a fake OpencodeClient: prompt returns the final turn; messages() returns the full trajectory. */
+  function fakeClient(opts: { messages?: Msg[]; promptInfo?: Msg["info"]; promptParts?: unknown[] }) {
     const calls: { prompt?: unknown } = {};
     const client = {
       session: {
         async create() {
           return { data: { id: "sess-1" } };
         },
-        async prompt(opts: unknown) {
-          calls.prompt = opts;
-          return { data: { info, parts } };
+        async prompt(o: unknown) {
+          calls.prompt = o;
+          return { data: { info: opts.promptInfo, parts: opts.promptParts ?? [] } };
+        },
+        async messages() {
+          return { data: opts.messages ?? [] };
         },
         async diff() {
           return { data: [{ path: "a.ts", diff: "@@ -1 +1 @@" }] };
@@ -186,15 +191,19 @@ describe("createSdkDriver", () => {
     );
   });
 
-  test("creates a session, prompts with split model + system, and normalizes parts", async () => {
-    const { client, calls } = fakeClient(
-      [
-        { type: "text", text: "let me edit", synthetic: false },
-        { type: "tool", tool: "edit", state: { status: "completed" } },
-        { type: "tool", tool: "bash", state: { status: "error" } },
+  test("prompts with split model + system and normalizes the full trajectory from messages()", async () => {
+    const { client, calls } = fakeClient({
+      messages: [
+        {
+          info: { role: "assistant", tokens: { input: 100, output: 40 } },
+          parts: [
+            { type: "text", text: "let me edit", synthetic: false },
+            { type: "tool", tool: "edit", state: { status: "completed" } },
+            { type: "tool", tool: "bash", state: { status: "error" } },
+          ],
+        },
       ],
-      { tokens: { input: 100, output: 40 } },
-    );
+    });
     const driver = createSdkDriver({ connect: () => client });
     const session = await driver.start({
       sandbox: sandboxWithEndpoint,
@@ -205,12 +214,10 @@ describe("createSdkDriver", () => {
     const sink: RawEvent[] = [];
     const final = await session.stream("do the task", sink, new AbortController().signal);
 
-    // model split + system propagated
     const body = (calls.prompt as { body: { model: { providerID: string; modelID: string }; system: string } }).body;
     expect(body.model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-8" });
     expect(body.system).toBe("be careful");
 
-    // parts normalized: 1 message + 2 tool calls, tool error flagged
     expect(sink).toHaveLength(3);
     expect(sink[0]).toMatchObject({ type: "message", role: "assistant", tokens: { input: 100, output: 40 } });
     expect(sink[2]).toMatchObject({ type: "tool_call", tool: "bash", ok: false });
@@ -218,9 +225,42 @@ describe("createSdkDriver", () => {
     expect(final.gitDiff).toContain("@@");
   });
 
+  // VF-006: a multi-message trajectory captures every tool call + assistant text in order
+  test("captures all steps across multiple messages with per-message tokens", async () => {
+    const { client } = fakeClient({
+      messages: [
+        { info: { role: "assistant", tokens: { input: 50, output: 10 } }, parts: [{ type: "tool", tool: "read", state: { status: "completed" } }] },
+        { info: { role: "tool" }, parts: [{ type: "text", text: "file contents", synthetic: false }] },
+        { info: { role: "assistant", tokens: { input: 60, output: 20 } }, parts: [{ type: "text", text: "final answer", synthetic: false }] },
+      ],
+    });
+    const driver = createSdkDriver({ connect: () => client });
+    const session = await driver.start({ sandbox: sandboxWithEndpoint, systemPrompt: "s", model: "a/b" });
+    const sink: RawEvent[] = [];
+    const final = await session.stream("t", sink, new AbortController().signal);
+
+    expect(sink.map((e) => e.type)).toEqual(["tool_call", "message", "message"]);
+    expect(sink[0]).toMatchObject({ tool: "read", tokens: { input: 50, output: 10 } });
+    expect(final.finalOutputText).toBe("final answer"); // last assistant text
+  });
+
+  test("falls back to the prompt result when messages() is empty", async () => {
+    const { client } = fakeClient({
+      messages: [],
+      promptInfo: { role: "assistant", tokens: { input: 7, output: 2 } },
+      promptParts: [{ type: "text", text: "fallback text", synthetic: false }],
+    });
+    const driver = createSdkDriver({ connect: () => client });
+    const session = await driver.start({ sandbox: sandboxWithEndpoint, systemPrompt: "s", model: "a/b" });
+    const sink: RawEvent[] = [];
+    const final = await session.stream("t", sink, new AbortController().signal);
+    expect(sink).toHaveLength(1);
+    expect(final.finalOutputText).toBe("fallback text");
+  });
+
   test("end-to-end through runOpenCode with the live driver shape", async () => {
-    const { client } = fakeClient([{ type: "text", text: "all done", synthetic: false }], {
-      tokens: { input: 5, output: 3 },
+    const { client } = fakeClient({
+      messages: [{ info: { role: "assistant", tokens: { input: 5, output: 3 } }, parts: [{ type: "text", text: "all done", synthetic: false }] }],
     });
     const driver = createSdkDriver({ connect: () => client });
     const trace = await runOpenCode(baseInput({ sandbox: sandboxWithEndpoint }), {
