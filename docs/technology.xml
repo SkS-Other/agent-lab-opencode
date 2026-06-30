@@ -1,0 +1,72 @@
+<TechnologyStack VERSION="0.2.0">
+  <Runtime>Bun 1.x</Runtime>
+  <Language>TypeScript 5.x</Language>
+  <Framework>none (CLI application; no web framework in v1)</Framework>
+
+  <Dependencies>
+    <dep name="@opencode-ai/sdk" version="latest" purpose="Type-safe JS/TS client to drive the headless OpenCode server (opencode serve): create sessions, send prompts, stream events/trace over SSE." />
+    <dep name="opencode" version="latest" purpose="The agent runtime under test; invoked as a headless server inside each sandbox." />
+    <dep name="pino" version="9.x" purpose="Structured logging with stable marker fields and redaction." />
+    <!-- Docker is used via CLI/engine API for sandbox lifecycle. A client lib (e.g. dockerode) vs. shelling out to the docker CLI is an open decision for $grace-plan. -->
+    <!-- A CLI arg parser (e.g. built-in, citty, or commander) to be chosen in $grace-plan. -->
+  </Dependencies>
+
+  <VersionConstraints>
+    <constraint lib="bun" min="1.0.0" max="1.x" reason="Runtime and test runner for the tool itself." />
+    <constraint lib="@opencode-ai/sdk" min="0.x" max="0.x" reason="OpenCode SDK is pre-1.0 and evolving; pin and isolate behind one adapter module." />
+  </VersionConstraints>
+
+  <Tooling>
+    <tool name="runtime" value="bun" version="1.x" />
+    <tool name="test-runner" value="bun test" version="1.x" />
+    <tool name="typecheck" value="tsc --noEmit" version="5.x" />
+    <tool name="container-runtime" value="docker" version="24+" />
+    <!-- linter/formatter (eslint/prettier or biome) to be decided in $grace-plan. -->
+  </Tooling>
+
+  <PreferredAgentStack>
+    <preferred-runtime-library>@opencode-ai/sdk</preferred-runtime-library>
+    <preferred-test-library>bun test</preferred-test-library>
+    <preferred-observability-library>pino</preferred-observability-library>
+    <discouraged-surface reason="Built around OpenCode specifically; a universal multi-agent adapter is out of scope for v1.">rivet sandbox-agent / vibekit as a foundational dependency</discouraged-surface>
+    <discouraged-surface reason="v1 isolation target is local Docker; cloud sandbox providers add accounts, keys, and network dependence.">E2B / Vercel Sandbox / Daytona as the v1 isolation backend</discouraged-surface>
+  </PreferredAgentStack>
+
+  <Testing>
+    <module-level>
+      <command>bun test src/&lt;module&gt;/index.test.ts</command>
+      <focus>Fast deterministic unit and contract checks; sandbox and OpenCode dependencies faked/stubbed.</focus>
+    </module-level>
+    <wave-level>
+      <command>bun test src/&lt;area&gt;</command>
+      <focus>Checks only merged surfaces touched by a wave (e.g. engine + sandbox adapter together).</focus>
+    </wave-level>
+    <phase-level>
+      <command>bun test</command>
+      <focus>Broader integration and regression confidence, including at least one real end-to-end run against a live OpenCode sandbox (gated/optional).</focus>
+    </phase-level>
+    <mocking-policy>Prefer fakes and narrow stubs over broad monkey-patching. The Docker sandbox boundary and the OpenCode SDK boundary are the two seams to fake for deterministic tests.</mocking-policy>
+  </Testing>
+
+  <Observability>
+    <logger>pino (structured JSON)</logger>
+    <log-format>[Module][function][BLOCK_NAME] message</log-format>
+    <required-fields>runId, correlationId, sandboxId</required-fields>
+    <redaction>Never log provider API keys, credentials, raw tokens, or full prompt/response payloads flagged sensitive. Redaction applies to both live logs and persisted traces.</redaction>
+  </Observability>
+
+  <AutonomyPolicy>
+    <default-execution-profile>balanced</default-execution-profile>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Missing dependency, contradictory contract, unclear OpenCode SDK / Docker surface, or an undecided open question from requirements.</replan-trigger>
+    <checkpoint-requirement>Every completed step must emit assumptions, commands, evidence, and next action.</checkpoint-requirement>
+  </AutonomyPolicy>
+
+  <DeliveryShape>
+    <shape>Single-host CLI tool on Bun. Core engine drives OpenCode (opencode serve + @opencode-ai/sdk) inside one Docker container per experiment run, with deny-by-default networking plus an allowlist for the LLM endpoint. CLI is the only interface in v1; the engine is separated so MCP/HTTP interfaces can wrap it later.</shape>
+    <persistence>Flat JSON under runs/&lt;runId&gt;/{run.json, trace.json, raw.log}; no database in v1 (SQLite deferred).</persistence>
+    <concurrency>Bounded parallelism, default 4, overridable via --concurrency, soft-capped by host resources.</concurrency>
+    <credentials>Provider API key injected via env at docker run; redacted in all logs and persisted traces. No credential broker in v1.</credentials>
+    <trace-schema>RunTrace (owned by M-TRACE, independent of the OpenCode SDK): runId, experiment, status, timings, steps[], tokenUsage, finalOutput(text + git diff), error?.</trace-schema>
+  </DeliveryShape>
+</TechnologyStack>

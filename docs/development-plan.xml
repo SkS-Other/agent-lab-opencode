@@ -1,0 +1,339 @@
+<DevelopmentPlan VERSION="0.2.0">
+  <ArchitectureNotes>
+    <objective>A CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker ("vacuum"), capture and compare agent behavior. Agents are the primary callers.</objective>
+    <objective>Keep a hard seam between the core engine and the interface so the CLI (v1) can be joined later by MCP/HTTP without touching the engine.</objective>
+    <objective>Isolate every OpenCode and Docker interaction behind a single adapter module each; keep the trace schema independent of the OpenCode SDK by normalizing in M-TRACE.</objective>
+    <non-goal>No universal multi-agent backend, no cloud sandbox provider, no MCP/HTTP, no rich human UI in v1.</non-goal>
+    <risk-1>Network "vacuum" vs. required LLM egress — the allowlist must be exact and verified by a flow (VF-003).</risk-1>
+    <risk-2>OpenCode SDK is pre-1.0; the M-OPENCODE adapter is the only place that knows its surface, and RunTrace lives in M-TRACE so SDK churn triggers replan, not a schema patch.</risk-2>
+    <risk-3>Container lifecycle leaks on crash/timeout; teardown must be guaranteed and observable (VF-004).</risk-3>
+    <decision-OQ1>RunTrace fields fixed: runId, experiment(model, prompt refs/hashes), status, timings, steps[], tokenUsage, finalOutput(text + git diff), error?.</decision-OQ1>
+    <decision-OQ2>Provider credentials injected via env at docker run; redacted in logs and persisted traces. No credential broker in v1.</decision-OQ2>
+    <decision-OQ3>Persistence is flat JSON: runs/&lt;runId&gt;/{run.json, trace.json, raw.log}. SQLite deferred.</decision-OQ3>
+    <decision-OQ4>Default concurrency 4, overridable via --concurrency, soft-capped by host resources.</decision-OQ4>
+    <decision-OQ5>Experiment input accepted both inline (CLI args) and via a config file (variation matrix).</decision-OQ5>
+    <decision-OQ6>ExperimentDefinition persists with the run; agent-lab run --from &lt;runId&gt; replays it.</decision-OQ6>
+  </ArchitectureNotes>
+
+  <Modules>
+    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Parse and validate an experiment definition from CLI args and/or a config file, and expand a variation matrix into concrete experiment definitions.</purpose>
+        <inputs>
+          <param name="rawInput" type="cli-args | config-file" />
+        </inputs>
+        <outputs>
+          <param name="ExperimentDefinition" type="validated object" />
+          <param name="ExperimentDefinition[]" type="expanded variation matrix" />
+        </outputs>
+        <errors>
+          <error code="CONFIG_INVALID_INPUT" />
+        </errors>
+      </contract>
+      <interface>
+        <export-loadExperiment PURPOSE="Parse and validate a single experiment definition" />
+        <export-expandMatrix PURPOSE="Expand a variation matrix into concrete experiment definitions" />
+        <type-ExperimentDefinition PURPOSE="Validated experiment input shape (systemPrompt, model, taskPrompt, sandbox/network opts, concurrency)" />
+      </interface>
+      <depends>none</depends>
+      <target>
+        <source>src/config/index.ts</source>
+        <tests>src/config/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Config]</log-prefix>
+        <critical-block>BLOCK_VALIDATE_INPUT</critical-block>
+      </observability>
+      <verification-ref>V-M-CONFIG</verification-ref>
+      <notes>
+        <note-1>Accepts inline args and config file (decision-OQ5). Variation matrix feeds parallel runs (DF-002).</note-1>
+      </notes>
+    </M-CONFIG>
+
+    <M-LOGGER NAME="Logger" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Structured logging with stable marker fields and secret redaction, shared by all modules.</purpose>
+        <inputs>
+          <param name="bindings" type="{ runId?, correlationId?, sandboxId? }" />
+        </inputs>
+        <outputs>
+          <param name="logger" type="pino.Logger" />
+        </outputs>
+        <errors />
+      </contract>
+      <interface>
+        <export-createLogger PURPOSE="Create a child logger with redaction and marker bindings" />
+      </interface>
+      <depends>none</depends>
+      <target>
+        <source>src/logger/index.ts</source>
+        <tests>src/logger/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Logger]</log-prefix>
+        <critical-block>BLOCK_REDACT_FIELDS</critical-block>
+      </observability>
+      <verification-ref>V-M-LOGGER</verification-ref>
+      <notes>
+        <note-1>Redaction is a Constraint (no secrets in logs or traces); covers the injected provider key (decision-OQ2).</note-1>
+      </notes>
+    </M-LOGGER>
+
+    <M-TRACE NAME="Trace" TYPE="UTILITY" LAYER="0" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Normalize raw OpenCode session events into a stable RunTrace schema and diff two traces, independent of the OpenCode SDK surface.</purpose>
+        <inputs>
+          <param name="rawEvents" type="OpenCode SSE event[]" />
+          <param name="traces" type="RunTrace[] (for diff)" />
+        </inputs>
+        <outputs>
+          <param name="RunTrace" type="stable normalized trace" />
+          <param name="TraceDiff" type="structured behavior/outcome diff" />
+        </outputs>
+        <errors>
+          <error code="TRACE_MALFORMED_EVENT" />
+        </errors>
+      </contract>
+      <interface>
+        <export-normalizeEvents PURPOSE="Fold raw OpenCode events into a RunTrace" />
+        <export-diffTraces PURPOSE="Produce a structured diff across RunTraces" />
+        <type-RunTrace PURPOSE="runId, experiment, status, timings, steps[], tokenUsage, finalOutput, error?" />
+        <type-TraceDiff PURPOSE="Structured behavior/outcome comparison" />
+      </interface>
+      <depends>none</depends>
+      <target>
+        <source>src/trace/index.ts</source>
+        <tests>src/trace/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Trace]</log-prefix>
+        <critical-block>BLOCK_NORMALIZE_EVENTS</critical-block>
+      </observability>
+      <verification-ref>V-M-TRACE</verification-ref>
+      <notes>
+        <note-1>Pure functions: deterministic normalization isolates the RunTrace schema from SDK churn (Risk-2). Defines RunTrace fields (decision-OQ1).</note-1>
+        <note-2>diffTraces powers UC-003 comparison without Docker/SDK.</note-2>
+      </notes>
+    </M-TRACE>
+
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" LAYER="1" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Provision and tear down an isolated Docker container per run ("vacuum"): isolated filesystem, deny-by-default network with an explicit LLM-endpoint allowlist, guaranteed cleanup.</purpose>
+        <inputs>
+          <param name="sandboxSpec" type="{ image, networkAllowlist, resourceLimits, mounts, env }" />
+        </inputs>
+        <outputs>
+          <param name="SandboxHandle" type="{ sandboxId, exec, dispose }" />
+        </outputs>
+        <errors>
+          <error code="SANDBOX_PROVISION_FAILED" />
+          <error code="SANDBOX_TEARDOWN_FAILED" />
+        </errors>
+      </contract>
+      <interface>
+        <export-createSandbox PURPOSE="Provision an isolated container and return a handle" />
+        <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (exec, dispose)" />
+      </interface>
+      <depends>M-LOGGER</depends>
+      <target>
+        <source>src/sandbox/index.ts</source>
+        <tests>src/sandbox/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Sandbox]</log-prefix>
+        <critical-block>BLOCK_APPLY_NETWORK_POLICY</critical-block>
+      </observability>
+      <verification-ref>V-M-SANDBOX</verification-ref>
+      <notes>
+        <note-1>The only module that knows Docker. Decision dockerode vs. docker CLI deferred to execution.</note-1>
+        <note-2>Teardown (BLOCK_TEARDOWN) must run on every path, including failure (Risk-3). Provider key injected via env (decision-OQ2).</note-2>
+      </notes>
+    </M-SANDBOX>
+
+    <M-OPENCODE NAME="OpenCodeAdapter" TYPE="INTEGRATION" LAYER="1" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Drive OpenCode inside a sandbox via headless server (opencode serve) + @opencode-ai/sdk: configure system prompt/model, create a session, send the task prompt, stream raw events, and hand them to M-TRACE for normalization.</purpose>
+        <inputs>
+          <param name="sandbox" type="SandboxHandle" />
+          <param name="experiment" type="ExperimentDefinition" />
+        </inputs>
+        <outputs>
+          <param name="RunTrace" type="normalized via M-TRACE" />
+        </outputs>
+        <errors>
+          <error code="OPENCODE_START_FAILED" />
+          <error code="OPENCODE_RUN_TIMEOUT" />
+        </errors>
+      </contract>
+      <interface>
+        <export-runOpenCode PURPOSE="Run one OpenCode session and return its normalized trace" />
+      </interface>
+      <depends>M-SANDBOX, M-TRACE, M-LOGGER</depends>
+      <target>
+        <source>src/opencode/index.ts</source>
+        <tests>src/opencode/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[OpenCodeAdapter]</log-prefix>
+        <critical-block>BLOCK_STREAM_TRACE</critical-block>
+      </observability>
+      <verification-ref>V-M-OPENCODE</verification-ref>
+      <notes>
+        <note-1>Single point of contact with the OpenCode SDK/server (Risk-2). On event-shape divergence, replan rather than patch RunTrace.</note-1>
+        <note-2>On timeout, returns a partial-but-marked trace (OPENCODE_RUN_TIMEOUT).</note-2>
+      </notes>
+    </M-OPENCODE>
+
+    <M-STORE NAME="TraceStore" TYPE="DATA_LAYER" LAYER="1" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Persist and retrieve experiment runs and their traces as flat JSON under runs/&lt;runId&gt;/; support listing and loading for comparison and replay.</purpose>
+        <inputs>
+          <param name="runRecord" type="{ runId, experiment, trace, status, timings }" />
+        </inputs>
+        <outputs>
+          <param name="persisted" type="run record by id" />
+        </outputs>
+        <errors>
+          <error code="STORE_NOT_FOUND" />
+        </errors>
+      </contract>
+      <interface>
+        <export-saveRun PURPOSE="Persist a run record and trace to runs/&lt;runId&gt;/" />
+        <export-getRun PURPOSE="Load a run record by id" />
+        <export-listRuns PURPOSE="List known runs" />
+      </interface>
+      <depends>M-TRACE, M-LOGGER</depends>
+      <target>
+        <source>src/store/index.ts</source>
+        <tests>src/store/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[TraceStore]</log-prefix>
+        <critical-block>BLOCK_PERSIST_RUN</critical-block>
+      </observability>
+      <verification-ref>V-M-STORE</verification-ref>
+      <notes>
+        <note-1>Flat JSON layout runs/&lt;runId&gt;/{run.json,trace.json,raw.log} (decision-OQ3). Stored ExperimentDefinition enables replay (decision-OQ6).</note-1>
+        <note-2>Depends on M-TRACE for the RunTrace type only (no Docker/SDK coupling).</note-2>
+      </notes>
+    </M-STORE>
+
+    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Orchestrate experiments end to end: for each variation provision a sandbox, run OpenCode, persist the normalized trace; manage bounded parallelism; guarantee cleanup; expose run comparison as a facade over M-STORE + M-TRACE.</purpose>
+        <inputs>
+          <param name="experiment" type="ExperimentDefinition | ExperimentDefinition[]" />
+          <param name="concurrency" type="number (default 4)" />
+        </inputs>
+        <outputs>
+          <param name="RunResult" type="run id(s) + status + trace ref" />
+          <param name="TraceDiff" type="comparison result" />
+        </outputs>
+        <errors>
+          <error code="ENGINE_RUN_FAILED" />
+        </errors>
+      </contract>
+      <interface>
+        <export-runExperiment PURPOSE="Run one or many experiments with bounded parallelism and guaranteed cleanup" />
+        <export-compareRuns PURPOSE="Load runs via M-STORE and diff them via M-TRACE" />
+      </interface>
+      <depends>M-CONFIG, M-SANDBOX, M-OPENCODE, M-STORE, M-TRACE, M-LOGGER</depends>
+      <target>
+        <source>src/engine/index.ts</source>
+        <tests>src/engine/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[ExperimentEngine]</log-prefix>
+        <critical-block>BLOCK_SCHEDULE_RUNS</critical-block>
+      </observability>
+      <verification-ref>V-M-ENGINE</verification-ref>
+      <notes>
+        <note-1>Interface-agnostic core. CLI/MCP/HTTP are thin callers. Concurrency default 4, --concurrency override (decision-OQ4).</note-1>
+        <note-2>A failing run must not abort siblings and must still tear its sandbox down.</note-2>
+      </notes>
+    </M-ENGINE>
+
+    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Expose the engine to agents (primary) and humans (secondary) as run/list/show/compare with stable, parseable stdout and exit codes.</purpose>
+        <inputs>
+          <param name="argv" type="string[]" />
+        </inputs>
+        <outputs>
+          <param name="stdout" type="structured (JSON) result" />
+          <param name="exitCode" type="number" />
+        </outputs>
+        <errors>
+          <error code="CLI_BAD_USAGE" />
+        </errors>
+      </contract>
+      <interface>
+        <export-main PURPOSE="CLI entry point dispatching run/list/show/compare" />
+      </interface>
+      <depends>M-ENGINE, M-CONFIG, M-LOGGER</depends>
+      <target>
+        <source>src/cli/index.ts</source>
+        <tests>src/cli/index.test.ts</tests>
+      </target>
+      <observability>
+        <log-prefix>[Cli]</log-prefix>
+        <critical-block>BLOCK_DISPATCH_COMMAND</critical-block>
+      </observability>
+      <verification-ref>V-M-CLI</verification-ref>
+      <notes>
+        <note-1>Thin layer over M-ENGINE; no business logic here so MCP/HTTP can mirror it later. Supports run --from &lt;runId&gt; replay (decision-OQ6).</note-1>
+      </notes>
+    </M-CLI>
+  </Modules>
+
+  <DataFlow>
+    <DF-001 NAME="SingleRun" TRIGGER="agent or operator requests one experiment">
+      <step-1>M-CLI parses argv; M-CONFIG validates into an ExperimentDefinition.</step-1>
+      <step-2>M-ENGINE provisions a sandbox via M-SANDBOX (deny-by-default network + LLM allowlist, env-injected key).</step-2>
+      <step-3>M-OPENCODE starts opencode serve in the sandbox, configures system prompt/model, creates a session, sends the task prompt.</step-3>
+      <step-4>M-OPENCODE streams raw events; M-TRACE normalizes them into a RunTrace until completion or timeout.</step-4>
+      <step-5>M-ENGINE persists the run via M-STORE and tears the sandbox down (guaranteed, BLOCK_TEARDOWN).</step-5>
+      <evidence>[ExperimentEngine][runExperiment][BLOCK_SCHEDULE_RUNS], [Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY], [OpenCodeAdapter][runOpenCode][BLOCK_STREAM_TRACE], [Trace][normalizeEvents][BLOCK_NORMALIZE_EVENTS], [TraceStore][saveRun][BLOCK_PERSIST_RUN].</evidence>
+    </DF-001>
+
+    <DF-002 NAME="ParallelRuns" TRIGGER="agent requests several variations at once">
+      <step-1>M-CONFIG expands the variation matrix into N ExperimentDefinitions.</step-1>
+      <step-2>M-ENGINE schedules them with bounded concurrency (default 4), one isolated sandbox each (no cross-interference).</step-2>
+      <step-3>Each run follows DF-001 steps 2-5 independently; a failing run does not abort siblings.</step-3>
+      <evidence>N distinct sandboxIds in logs; no shared filesystem/session across runs; N independent persisted traces; concurrency within bound.</evidence>
+    </DF-002>
+
+    <DF-003 NAME="InspectAndCompare" TRIGGER="agent requests results of prior runs">
+      <step-1>M-CLI dispatches list/show/compare to M-ENGINE.</step-1>
+      <step-2>M-STORE loads the requested run record(s) and trace(s).</step-2>
+      <step-3>M-TRACE.diffTraces produces a structured behavior/outcome diff.</step-3>
+      <evidence>[TraceStore][getRun] returns persisted trace; [Trace][diffTraces][BLOCK_DIFF_TRACES] output is structured and stable.</evidence>
+    </DF-003>
+  </DataFlow>
+
+  <ImplementationOrder>
+    <Phase-1 name="Foundation" status="pending">
+      <goal>Deterministic L0 utilities as pure testable cores, then the two external seams (sandbox, OpenCode) and persistence behind fakes.</goal>
+      <step-1 module="M-CONFIG" status="pending" verification="V-M-CONFIG">Experiment definition parsing, validation, matrix expansion</step-1>
+      <step-2 module="M-LOGGER" status="pending" verification="V-M-LOGGER">Structured logger with redaction</step-2>
+      <step-3 module="M-TRACE" status="pending" verification="V-M-TRACE">RunTrace normalization and diff (pure functions)</step-3>
+      <step-4 module="M-SANDBOX" status="pending" verification="V-M-SANDBOX">Docker sandbox lifecycle with network policy and guaranteed teardown</step-4>
+      <step-5 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">OpenCode adapter feeding M-TRACE</step-5>
+      <step-6 module="M-STORE" status="pending" verification="V-M-STORE">Flat-JSON run/trace persistence</step-6>
+    </Phase-1>
+    <Phase-2 name="Orchestration" status="pending">
+      <goal>End-to-end single and parallel experiment runs with bounded concurrency, guaranteed cleanup, and comparison.</goal>
+      <step-1 module="M-ENGINE" status="pending" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
+      <step-2 module="M-CLI" status="pending" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
+    </Phase-2>
+  </ImplementationOrder>
+
+  <ExecutionPolicy>
+    <default-profile>balanced</default-profile>
+    <controller-owns>docs/development-plan.xml, docs/knowledge-graph.xml, docs/verification-plan.xml</controller-owns>
+    <worker-owns>Only module source files and module-local tests inside the approved write scope.</worker-owns>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Missing dependency, contradictory contract, OpenCode SDK event-shape divergence, or sandbox teardown that cannot be guaranteed.</replan-trigger>
+    <checkpoint-requirement>Every step must leave assumptions, commands run, evidence, and next action.</checkpoint-requirement>
+  </ExecutionPolicy>
+</DevelopmentPlan>
