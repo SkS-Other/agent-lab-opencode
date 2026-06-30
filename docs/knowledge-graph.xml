@@ -40,7 +40,11 @@
         <fn-normalizeEvents PURPOSE="Fold raw OpenCode events into a RunTrace" />
         <fn-diffTraces PURPOSE="Produce a structured diff across RunTraces" />
         <type-RunTrace PURPOSE="runId, experiment, status, timings, steps[], tokenUsage, finalOutput, error?" />
+        <type-RunStep PURPOSE="One normalized step (message or tool_call)" />
+        <type-RawEvent PURPOSE="Minimal raw event shape M-OPENCODE feeds in" />
+        <type-RunTraceInput PURPOSE="Run-level facts passed to normalizeEvents" />
         <type-TraceDiff PURPOSE="Structured behavior/outcome comparison" />
+        <class-TraceError PURPOSE="Typed error carrying TRACE_MALFORMED_EVENT" />
       </annotations>
     </M-TRACE>
 
