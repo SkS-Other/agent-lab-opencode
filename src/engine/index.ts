@@ -20,6 +20,7 @@
 //   DEFAULT_CONCURRENCY - default parallelism (4)
 //   EngineError - typed error carrying ENGINE_RUN_FAILED
 //   ENGINE_RUN_FAILED - stable error code constant
+//   createStore - re-exported from M-STORE so callers build a store without importing it directly
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
