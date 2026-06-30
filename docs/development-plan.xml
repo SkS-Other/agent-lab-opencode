@@ -116,7 +116,7 @@
       </notes>
     </M-TRACE>
 
-    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" LAYER="1" ORDER="1" STATUS="partial">
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" LAYER="1" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Provision and tear down an isolated Docker container per run ("vacuum"): isolated filesystem, deny-by-default network with an explicit LLM-endpoint allowlist, guaranteed cleanup.</purpose>
         <inputs>
@@ -181,6 +181,7 @@
       <notes>
         <note-1>Single point of contact with the OpenCode SDK/server (Risk-2). On event-shape divergence, replan rather than patch RunTrace.</note-1>
         <note-2>On timeout, returns a partial-but-marked trace (OPENCODE_RUN_TIMEOUT).</note-2>
+        <note-3>createSdkDriver wired to real @opencode-ai/sdk and tested on a fake client; serve/endpoint infra verified live. STATUS stays partial until a gated live LLM prompt run completes (Phase-3 step-4, needs user provider).</note-3>
       </notes>
     </M-OPENCODE>
 
@@ -326,6 +327,13 @@
       <step-1 module="M-ENGINE" status="done" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
       <step-2 module="M-CLI" status="done" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
     </Phase-2>
+    <Phase-3 name="LiveIntegration" status="in-progress">
+      <goal>Wire the two INTEGRATION seams to the real Docker + @opencode-ai/sdk surface and prove them against a live container.</goal>
+      <step-1 module="M-SANDBOX" status="done" verification="V-M-SANDBOX">Publish port, resolve endpoint, readiness probe; verified live (opencode serve responds, teardown clean)</step-1>
+      <step-2 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">createSdkDriver against @opencode-ai/sdk (session.create/prompt/diff, part normalization)</step-2>
+      <step-3 module="M-ENGINE" status="done" verification="V-M-ENGINE">Executor publishes port 4096 and mounts host OpenCode config read-only; docker/Dockerfile image</step-3>
+      <step-4 module="M-OPENCODE" status="pending" verification="V-M-OPENCODE">Gated live LLM run (scripts/live-smoke.ts) — requires the user's configured OpenCode provider; promotes M-OPENCODE to implemented</step-4>
+    </Phase-3>
   </ImplementationOrder>
 
   <ExecutionPolicy>

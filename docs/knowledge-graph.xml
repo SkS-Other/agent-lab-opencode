@@ -48,7 +48,7 @@
       </annotations>
     </M-TRACE>
 
-    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" STATUS="partial">
+    <M-SANDBOX NAME="Sandbox" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Provision and tear down an isolated Docker container per run with deny-by-default network plus LLM allowlist and guaranteed cleanup.</purpose>
       <path>src/sandbox/index.ts</path>
       <depends>M-LOGGER</depends>
