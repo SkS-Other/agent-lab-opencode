@@ -35,9 +35,9 @@
       </required-signals>
     </VF-002>
 
-    <VF-003 NAME="NetworkVacuum" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
-      <scenario>A sandboxed run can reach only the allowlisted LLM endpoint; all other egress is denied.</scenario>
-      <expected-outcome>LLM calls succeed; a probe to a non-allowlisted host fails.</expected-outcome>
+    <VF-003 NAME="NetworkPolicy" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>The sandbox applies the requested network mode: 'open' = bridge egress (agent reaches its LLM), 'vacuum' = deny-by-default allowlist.</scenario>
+      <expected-outcome>'open' runs reach the LLM and publish their port; strict isolation is verified by VF-007. ('open' always uses bridge — never --network none, which would break port publishing.)</expected-outcome>
       <required-signals>
         <log-marker>[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY]</log-marker>
       </required-signals>
