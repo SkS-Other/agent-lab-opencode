@@ -55,13 +55,14 @@ interface FakeCalls {
   run: string[][];
   exec: Array<{ id: string; cmd: string[] }>;
   remove: string[];
+  port: Array<{ id: string; containerPort: number }>;
 }
 
 function fakeEngine(opts: { failRun?: boolean; failRemove?: boolean } = {}): {
   engine: DockerEngine;
   calls: FakeCalls;
 } {
-  const calls: FakeCalls = { run: [], exec: [], remove: [] };
+  const calls: FakeCalls = { run: [], exec: [], remove: [], port: [] };
   const engine: DockerEngine = {
     async run(args) {
       calls.run.push(args);
@@ -75,6 +76,10 @@ function fakeEngine(opts: { failRun?: boolean; failRemove?: boolean } = {}): {
     async remove(id) {
       calls.remove.push(id);
       if (opts.failRemove) throw new Error("docker rm boom");
+    },
+    async port(id, containerPort) {
+      calls.port.push({ id, containerPort });
+      return 49153;
     },
   };
   return { engine, calls };
@@ -202,5 +207,45 @@ describe("withSandbox", () => {
     });
     expect(out).toBe("result");
     expect(calls.remove).toHaveLength(1);
+  });
+});
+
+describe("publishPort / endpoint readiness", () => {
+  const portSpec: SandboxSpec = { ...spec, publishPort: 4096 };
+
+  test("buildRunArgs publishes the port to loopback", () => {
+    const args = buildRunArgs(portSpec);
+    expect(args).toContain("-p");
+    expect(args).toContain("127.0.0.1::4096");
+  });
+
+  test("resolves an endpoint and waits for readiness", async () => {
+    const sink = collectLines();
+    const logger = createLogger({ destination: sink.dest, level: "debug" });
+    const { engine, calls } = fakeEngine();
+    let probed: string | undefined;
+    const ready = async (url: string) => {
+      probed = url;
+    };
+
+    const handle = await createSandbox(portSpec, { logger, engine, ready });
+    expect(calls.port).toEqual([{ id: "fake-container-123", containerPort: 4096 }]);
+    expect(handle.endpoint).toBe("http://127.0.0.1:49153");
+    expect(probed).toBe("http://127.0.0.1:49153");
+    expect(sink.markers()).toContain("BLOCK_WAIT_READY");
+    await handle.dispose();
+  });
+
+  test("removes the container and fails when the endpoint never becomes ready", async () => {
+    const logger = createLogger({ level: "silent" });
+    const { engine, calls } = fakeEngine();
+    const ready = async () => {
+      throw new Error("never came up");
+    };
+
+    await expect(createSandbox(portSpec, { logger, engine, ready })).rejects.toMatchObject({
+      code: SANDBOX_PROVISION_FAILED,
+    });
+    expect(calls.remove).toEqual(["fake-container-123"]); // cleaned up, no leak
   });
 });
