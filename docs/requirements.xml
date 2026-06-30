@@ -80,7 +80,7 @@
   <OpenQuestions>
     <!-- Resolved during $grace-plan; recorded here for traceability. See development-plan.xml ArchitectureNotes decision-OQ*. -->
     <resolved-1>Behavior trace = RunTrace owned by M-TRACE: runId, experiment, status, timings, steps[], tokenUsage, finalOutput(text + git diff), error?.</resolved-1>
-    <resolved-2>Provider credentials injected via env at docker run; redacted in logs and persisted traces. No credential broker in v1.</resolved-2>
+    <resolved-2>Credentials: provider comes from the user's OpenCode config, mounted read-only into the sandbox (~/.config/opencode, ~/.local/share/opencode); known env keys also injected. Redacted in logs and persisted traces. No credential broker in v1.</resolved-2>
     <resolved-3>Persistence is flat JSON under runs/&lt;runId&gt;/{run.json, trace.json, raw.log}; SQLite deferred.</resolved-3>
     <resolved-4>Bounded parallelism, default 4, overridable via --concurrency, soft-capped by host resources.</resolved-4>
     <resolved-5>Experiment input accepted both inline (CLI args) and via a config file (variation matrix).</resolved-5>
