@@ -73,7 +73,7 @@
       <verification-ref>V-M-OPENCODE</verification-ref>
       <annotations>
         <fn-runOpenCode PURPOSE="Run one OpenCode session and return its normalized trace" />
-        <fn-createSdkDriver PURPOSE="Live OpenCodeDriver backed by @opencode-ai/sdk (phase-level wiring)" />
+        <fn-createSdkDriver PURPOSE="Live OpenCodeDriver backed by @opencode-ai/sdk (session.create/prompt/diff)" />
         <type-OpenCodeDriver PURPOSE="Injectable port: start a session (faked in tests)" />
         <type-OpenCodeSession PURPOSE="Injectable port: stream events for a task prompt" />
         <type-RunOpenCodeInput PURPOSE="Run-scoped inputs (no M-CONFIG coupling)" />
