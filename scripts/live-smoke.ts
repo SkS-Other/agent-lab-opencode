@@ -35,13 +35,20 @@ if (model === undefined || model.length === 0) {
 const task = process.argv[3] ?? 'Create a file named hello.txt containing the text "hello from agent-lab".';
 
 const logger = createLogger({ level: "info" });
+// AGENT_LAB_VACUUM=1 enables the strict egress allowlist; AGENT_LAB_ALLOW overrides the LLM host(s).
+const vacuum = process.env.AGENT_LAB_VACUUM === "1";
+const allowHosts = (process.env.AGENT_LAB_ALLOW ?? "cpa.funxyz.fun").split(",");
 const definition = loadExperiment({
   name: "live-smoke",
   systemPrompt: "You are a helpful coding agent operating inside an isolated sandbox.",
   model,
   taskPrompt: task,
-  // Non-empty allowlist => bridge networking (egress open) per the basic-vacuum decision.
-  sandbox: { image: "agent-lab-opencode:latest", networkAllowlist: ["llm-endpoint"], timeoutMs: 120_000 },
+  sandbox: {
+    image: "agent-lab-opencode:latest",
+    networkAllowlist: vacuum ? allowHosts : ["llm-endpoint"],
+    timeoutMs: 120_000,
+    ...(vacuum ? { networkMode: "vacuum" as const } : {}),
+  },
 });
 
 const store = createStore({ logger, baseDir: "runs" });

@@ -14,7 +14,8 @@
 //   withSandbox - run a function with a sandbox and guarantee dispose() (BLOCK_TEARDOWN)
 //   buildRunArgs - pure: translate a SandboxSpec into docker run arguments (network policy + port publish)
 //   createDockerEngine - real DockerEngine backed by the docker CLI via Bun.spawn
-//   SandboxSpec - image, network allowlist, env, mounts, resource limits, publishPort
+//   SandboxSpec - image, network allowlist, networkMode, env, mounts, resource limits, publishPort
+//   NetworkMode - 'open' | 'vacuum'
 //   SandboxMount - one source->target mount
 //   SandboxHandle - { sandboxId, endpoint?, exec, dispose }
 //   ExecResult - { stdout, stderr, exitCode }
@@ -27,6 +28,7 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.2.0 - Add 'vacuum' networkMode: in-container iptables egress allowlist (NET_ADMIN + vacuum entrypoint).
 //   LAST_CHANGE: v1.1.0 - Add publishPort + handle.endpoint + DockerEngine.port + injectable readiness probe for live runs.
 //   LAST_CHANGE: v1.0.0 - Initial M-SANDBOX: DI docker engine, network policy build, guaranteed teardown.
 // END_CHANGE_SUMMARY
@@ -53,10 +55,18 @@ export interface SandboxMount {
   readonly?: boolean;
 }
 
+export type NetworkMode = "open" | "vacuum";
+
 export interface SandboxSpec {
   image: string;
-  /** Hosts the container may reach. Empty => full network vacuum (--network none). */
+  /** Hosts the container may reach. In 'open' mode: empty => --network none, else bridge. In 'vacuum' mode: the egress allowlist. */
   networkAllowlist: string[];
+  /**
+   * 'open' (default): bridge networking, egress open (or --network none when the allowlist is empty).
+   * 'vacuum': deny-by-default egress enforced by an in-container iptables filter (needs the vacuum image
+   *           entrypoint + NET_ADMIN); only the allowlist hosts (plus opencode's own infra) are reachable.
+   */
+  networkMode?: NetworkMode;
   env?: Record<string, string>;
   mounts?: SandboxMount[];
   resourceLimits?: { cpus?: number; memoryMb?: number };
@@ -65,6 +75,11 @@ export interface SandboxSpec {
   /** Container port to publish to the host (e.g. the opencode serve port). Enables handle.endpoint. */
   publishPort?: number;
 }
+
+/** Hosts opencode itself needs at startup regardless of the experiment (model list, install metadata). */
+const VACUUM_BASE_HOSTS = ["models.dev", "opencode.ai", "registry.npmjs.org"];
+/** Entrypoint baked into the vacuum image: applies the iptables allowlist, then execs opencode serve. */
+const VACUUM_ENTRYPOINT = "/usr/local/bin/agent-lab-vacuum";
 
 export interface ExecResult {
   stdout: string;
@@ -108,10 +123,18 @@ export interface SandboxDeps {
 // END_CONTRACT: buildRunArgs
 export function buildRunArgs(spec: SandboxSpec): string[] {
   const args: string[] = [];
+  const mode: NetworkMode = spec.networkMode ?? "open";
 
-  // Network policy: empty allowlist => full vacuum. Non-empty => isolated bridge; host-level
-  // egress filtering to the allowlist is enforced by the phase-level live setup (see V-M-SANDBOX).
-  if (spec.networkAllowlist.length === 0) {
+  if (mode === "vacuum") {
+    // Strict deny-by-default egress: the vacuum entrypoint applies an iptables allowlist (needs NET_ADMIN),
+    // permitting only DNS + the resolved allowlist hosts. Direct egress so node/bun fetch works (no proxy).
+    const hosts = [...new Set([...spec.networkAllowlist, ...VACUUM_BASE_HOSTS])];
+    args.push("--network", "bridge");
+    args.push("--cap-add", "NET_ADMIN");
+    args.push("-e", `AGENT_LAB_ALLOW=${hosts.join(",")}`);
+    args.push("--entrypoint", VACUUM_ENTRYPOINT);
+  } else if (spec.networkAllowlist.length === 0) {
+    // 'open' with no allowlist => full vacuum.
     args.push("--network", "none");
   } else {
     args.push("--network", "bridge");
@@ -153,10 +176,11 @@ export async function createSandbox(spec: SandboxSpec, deps: SandboxDeps): Promi
 
   // START_BLOCK_APPLY_NETWORK_POLICY
   const args = buildRunArgs(spec);
+  const mode: NetworkMode = spec.networkMode ?? "open";
   logger.info(
     {
       marker: "BLOCK_APPLY_NETWORK_POLICY",
-      networkMode: spec.networkAllowlist.length === 0 ? "none" : "allowlist",
+      networkMode: mode === "vacuum" ? "vacuum" : spec.networkAllowlist.length === 0 ? "none" : "allowlist",
       allowlistSize: spec.networkAllowlist.length,
     },
     "[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY] applying network policy",

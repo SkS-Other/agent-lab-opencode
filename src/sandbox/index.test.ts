@@ -115,6 +115,25 @@ describe("buildRunArgs", () => {
     expect(args).toContain("ANTHROPIC_API_KEY=sk-secret");
     expect(args.at(-1)).toBe("agent-lab-opencode:latest"); // image last (no entrypoint)
   });
+
+  // VF-007: vacuum mode adds NET_ADMIN + allowlist env + vacuum entrypoint
+  test("vacuum mode enforces an iptables allowlist via NET_ADMIN + entrypoint", () => {
+    const args = buildRunArgs({ ...spec, networkMode: "vacuum", networkAllowlist: ["cpa.funxyz.fun"] });
+    expect(args).toContain("--cap-add");
+    expect(args).toContain("NET_ADMIN");
+    expect(args).toContain("--entrypoint");
+    expect(args).toContain("/usr/local/bin/agent-lab-vacuum");
+    const allowEnv = args.find((a) => a.startsWith("AGENT_LAB_ALLOW="));
+    expect(allowEnv).toBeDefined();
+    // includes the experiment host plus opencode's own infra hosts
+    expect(allowEnv).toContain("cpa.funxyz.fun");
+    expect(allowEnv).toContain("models.dev");
+  });
+
+  test("open mode does not add NET_ADMIN", () => {
+    const args = buildRunArgs({ ...spec, networkMode: "open" });
+    expect(args).not.toContain("NET_ADMIN");
+  });
 });
 
 describe("createSandbox", () => {
