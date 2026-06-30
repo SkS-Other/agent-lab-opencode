@@ -204,19 +204,13 @@ export function createSdkDriver(opts: { connect?: (baseUrl: string) => OpencodeC
           if (res.error !== undefined || res.data === undefined) {
             throw new Error(`opencode prompt failed: ${JSON.stringify(res.error ?? "no data")}`);
           }
-          const { info, parts } = res.data as { info?: { tokens?: { input: number; output: number } }; parts: unknown[] };
 
-          const events = partsToEvents(parts);
-          const firstMessage = events.find((e): e is Extract<RawEvent, { type: "message" }> => e.type === "message");
-          if (firstMessage !== undefined && info?.tokens !== undefined) {
-            firstMessage.tokens = { input: info.tokens.input, output: info.tokens.output };
-          }
+          // Re-read the full session trajectory: prompt only returns the final assistant turn,
+          // so messages() gives every message + part (all tool calls + texts) with per-message tokens.
+          const events = await collectTrajectory(client, sessionId, res.data as PromptResult);
           for (const ev of events) sink.push(ev);
 
-          const finalOutputText = events
-            .filter((e): e is Extract<RawEvent, { type: "message" }> => e.type === "message" && e.role === "assistant")
-            .map((e) => e.text)
-            .join("\n");
+          const finalOutputText = lastAssistantText(events);
           const gitDiff = await collectDiff(client, sessionId);
           return { finalOutputText, ...(gitDiff !== undefined ? { gitDiff } : {}) };
         },
@@ -247,18 +241,57 @@ function splitModel(model: string): { providerID: string; modelID: string } {
   return { providerID: model.slice(0, slash), modelID: model.slice(slash + 1) };
 }
 
-/** Map OpenCode message parts to normalized RawEvents (text -> message, tool -> tool_call). */
-function partsToEvents(parts: unknown[]): RawEvent[] {
-  const events: RawEvent[] = [];
-  for (const raw of parts) {
-    const part = raw as { type?: string; text?: string; synthetic?: boolean; tool?: string; state?: { status?: string } };
-    if (part.type === "text" && part.synthetic !== true && typeof part.text === "string" && part.text.length > 0) {
-      events.push({ type: "message", role: "assistant", text: part.text });
-    } else if (part.type === "tool" && typeof part.tool === "string") {
-      events.push({ type: "tool_call", tool: part.tool, ok: part.state?.status !== "error" });
+type OpenCodePart = { type?: string; text?: string; synthetic?: boolean; tool?: string; state?: { status?: string } };
+type OpenCodeMessage = { info?: { role?: string; tokens?: { input?: number; output?: number } }; parts?: OpenCodePart[] };
+type PromptResult = { info?: { role?: string; tokens?: { input?: number; output?: number } }; parts?: OpenCodePart[] };
+
+/**
+ * Collect the full ordered step list for the session. Prefers session.messages() (the whole
+ * trajectory: every tool call + assistant text with per-message tokens); falls back to the
+ * single prompt result if messages() is unavailable.
+ */
+async function collectTrajectory(client: OpencodeClient, sessionId: string, promptResult: PromptResult): Promise<RawEvent[]> {
+  try {
+    const res = await client.session.messages({ path: { id: sessionId } });
+    if (res.error === undefined && Array.isArray(res.data) && res.data.length > 0) {
+      return (res.data as OpenCodeMessage[]).flatMap(messageToEvents);
     }
+  } catch {
+    // fall through to the prompt result
+  }
+  return messageToEvents({ info: promptResult.info, parts: promptResult.parts });
+}
+
+/** Map one OpenCode message (info + parts) to ordered RawEvents; attach tokens once per message. */
+function messageToEvents(message: OpenCodeMessage): RawEvent[] {
+  const role: "assistant" | "tool" = message.info?.role === "assistant" ? "assistant" : "tool";
+  const tokens = message.info?.role === "assistant" ? message.info?.tokens : undefined;
+  const events: RawEvent[] = [];
+  let tokensAttached = false;
+  for (const part of message.parts ?? []) {
+    let ev: RawEvent | undefined;
+    if (part.type === "text" && part.synthetic !== true && typeof part.text === "string" && part.text.length > 0) {
+      ev = { type: "message", role, text: part.text };
+    } else if (part.type === "tool" && typeof part.tool === "string") {
+      ev = { type: "tool_call", tool: part.tool, ok: part.state?.status !== "error" };
+    }
+    if (ev === undefined) continue;
+    if (tokens !== undefined && !tokensAttached) {
+      ev.tokens = { input: tokens.input ?? 0, output: tokens.output ?? 0 };
+      tokensAttached = true;
+    }
+    events.push(ev);
   }
   return events;
+}
+
+/** Final output text = the concatenated assistant texts of the last assistant message. */
+function lastAssistantText(events: RawEvent[]): string {
+  const assistantTexts = events.filter(
+    (e): e is Extract<RawEvent, { type: "message" }> => e.type === "message" && e.role === "assistant",
+  );
+  const last = assistantTexts.at(-1);
+  return last?.text ?? "";
 }
 
 /** Fetch the session git diff, tolerating SDK/shape errors (diff is best-effort evidence). */
