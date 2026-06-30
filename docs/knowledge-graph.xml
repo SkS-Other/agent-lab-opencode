@@ -86,9 +86,15 @@
       <depends>M-TRACE, M-LOGGER</depends>
       <verification-ref>V-M-STORE</verification-ref>
       <annotations>
+        <fn-createStore PURPOSE="Build a flat-JSON TraceStore rooted at a base directory" />
         <fn-saveRun PURPOSE="Persist a run record and trace" />
         <fn-getRun PURPOSE="Load a run record by id" />
         <fn-listRuns PURPOSE="List known runs" />
+        <type-TraceStore PURPOSE="saveRun / getRun / listRuns" />
+        <type-StoredRun PURPOSE="Persisted run record (experiment metadata + trace, no secrets)" />
+        <type-RunSummary PURPOSE="Lightweight listing entry" />
+        <type-ExperimentSummary PURPOSE="Replay-sufficient experiment metadata (no sandbox.env)" />
+        <class-StoreError PURPOSE="Typed error carrying STORE_NOT_FOUND" />
       </annotations>
     </M-STORE>
 
