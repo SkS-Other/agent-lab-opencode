@@ -15,6 +15,7 @@
 //   ExperimentDefinition - validated experiment input shape
 //   ExperimentMatrix - variation-matrix input shape
 //   SandboxOptions - sandbox/network options for one run
+//   NetworkMode - 'open' | 'vacuum'
 //   ConfigError - typed validation error carrying code CONFIG_INVALID_INPUT
 //   CONFIG_INVALID_INPUT - stable error code constant
 //   GraceLogger - minimal structural logger interface (DI; keeps DEPENDS=none)
@@ -43,6 +44,8 @@ export class ConfigError extends Error {
   }
 }
 
+export type NetworkMode = "open" | "vacuum";
+
 export interface SandboxOptions {
   /** Container image that hosts opencode. */
   image: string;
@@ -50,6 +53,8 @@ export interface SandboxOptions {
   networkAllowlist: string[];
   /** Hard wall-clock timeout for the run, in milliseconds. */
   timeoutMs: number;
+  /** 'open' (default) bridge egress, or 'vacuum' strict deny-by-default egress allowlist. */
+  networkMode?: NetworkMode;
   /** Optional resource caps. */
   resourceLimits?: { cpus?: number; memoryMb?: number };
 }
@@ -192,6 +197,12 @@ function normalizeSandbox(raw: unknown): SandboxOptions {
   const networkAllowlist = s.networkAllowlist === undefined ? [] : asStringArray(s.networkAllowlist, "sandbox.networkAllowlist");
 
   const sandbox: SandboxOptions = { image, networkAllowlist, timeoutMs };
+  if (s.networkMode !== undefined) {
+    if (s.networkMode !== "open" && s.networkMode !== "vacuum") {
+      throw new ConfigError(`field "sandbox.networkMode" must be "open" or "vacuum"`);
+    }
+    sandbox.networkMode = s.networkMode;
+  }
   if (s.resourceLimits !== undefined) {
     if (typeof s.resourceLimits !== "object" || s.resourceLimits === null) {
       throw new ConfigError(`field "sandbox.resourceLimits" must be an object when present`);

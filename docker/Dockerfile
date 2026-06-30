@@ -5,12 +5,17 @@
 FROM node:22-slim
 
 # git is required for opencode's working-tree diff (RunTrace.finalOutput.gitDiff).
+# iptables is used by the optional 'vacuum' network mode to enforce an egress allowlist.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates \
+  && apt-get install -y --no-install-recommends git ca-certificates iptables \
   && rm -rf /var/lib/apt/lists/*
 
 # Install the OpenCode CLI globally.
 RUN npm install -g opencode-ai@latest
+
+# Vacuum entrypoint (used only when the sandbox runs with networkMode 'vacuum' + NET_ADMIN).
+COPY agent-lab-vacuum.sh /usr/local/bin/agent-lab-vacuum
+RUN chmod +x /usr/local/bin/agent-lab-vacuum
 
 # Each run drives an isolated working tree; initialize it as a git repo so diffs work.
 WORKDIR /workspace
