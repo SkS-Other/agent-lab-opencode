@@ -26,6 +26,8 @@
       <verification-ref>V-M-LOGGER</verification-ref>
       <annotations>
         <fn-createLogger PURPOSE="Create a child logger with redaction and marker bindings" />
+        <type-Logger PURPOSE="Re-exported pino.Logger type for downstream modules" />
+        <type-LogBindings PURPOSE="Stable marker fields (runId/correlationId/sandboxId)" />
       </annotations>
     </M-LOGGER>
 
