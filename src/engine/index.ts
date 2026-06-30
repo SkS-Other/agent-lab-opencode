@@ -166,7 +166,9 @@ export function createDefaultExecutor(deps: {
       const spec: SandboxSpec = {
         image: experiment.sandbox.image,
         networkAllowlist: experiment.sandbox.networkAllowlist,
+        publishPort: OPENCODE_SERVE_PORT,
         env: collectProviderEnv(),
+        mounts: opencodeConfigMounts(),
         ...(experiment.sandbox.resourceLimits !== undefined ? { resourceLimits: experiment.sandbox.resourceLimits } : {}),
       };
       const sandboxDeps = { logger: deps.logger, ...(deps.engine !== undefined ? { engine: deps.engine } : {}) };
@@ -204,6 +206,9 @@ async function runPool<I, O>(items: I[], limit: number, worker: (item: I, index:
   return results;
 }
 
+/** Port opencode serve listens on inside the sandbox; the host publishes a random loopback port. */
+const OPENCODE_SERVE_PORT = 4096;
+
 /** Collect known provider keys from the environment for env-injection into the sandbox. */
 function collectProviderEnv(): Record<string, string> {
   const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENCODE_API_KEY"];
@@ -213,6 +218,19 @@ function collectProviderEnv(): Record<string, string> {
     if (typeof value === "string" && value.length > 0) env[key] = value;
   }
   return env;
+}
+
+/**
+ * Mount the host's OpenCode config/auth read-only into the container so the custom provider
+ * (configured in the user's OpenCode setup) is available without baking secrets into the image.
+ */
+function opencodeConfigMounts(): Array<{ source: string; target: string; readonly: boolean }> {
+  const home = process.env.HOME;
+  if (home === undefined || home.length === 0) return [];
+  return [
+    { source: `${home}/.config/opencode`, target: "/root/.config/opencode", readonly: true },
+    { source: `${home}/.local/share/opencode`, target: "/root/.local/share/opencode", readonly: true },
+  ];
 }
 
 /** Re-export createStore so callers can build the default store without importing M-STORE directly. */
