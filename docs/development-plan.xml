@@ -218,7 +218,7 @@
       </notes>
     </M-STORE>
 
-    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="planned">
+    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Orchestrate experiments end to end: for each variation provision a sandbox, run OpenCode, persist the normalized trace; manage bounded parallelism; guarantee cleanup; expose run comparison as a facade over M-STORE + M-TRACE.</purpose>
         <inputs>
@@ -253,7 +253,7 @@
       </notes>
     </M-ENGINE>
 
-    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="planned">
+    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Expose the engine to agents (primary) and humans (secondary) as run/list/show/compare with stable, parseable stdout and exit codes.</purpose>
         <inputs>
@@ -321,10 +321,10 @@
       <step-5 module="M-OPENCODE" status="done" verification="V-M-OPENCODE">OpenCode adapter feeding M-TRACE (module-level on fake driver; live @opencode-ai/sdk wiring gated to phase-level)</step-5>
       <step-6 module="M-STORE" status="done" verification="V-M-STORE">Flat-JSON run/trace persistence</step-6>
     </Phase-1>
-    <Phase-2 name="Orchestration" status="pending">
+    <Phase-2 name="Orchestration" status="done">
       <goal>End-to-end single and parallel experiment runs with bounded concurrency, guaranteed cleanup, and comparison.</goal>
-      <step-1 module="M-ENGINE" status="pending" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
-      <step-2 module="M-CLI" status="pending" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
+      <step-1 module="M-ENGINE" status="done" verification="V-M-ENGINE">Experiment orchestration, parallelism, compare facade</step-1>
+      <step-2 module="M-CLI" status="done" verification="V-M-CLI">CLI: run/list/show/compare (+ run --from replay)</step-2>
     </Phase-2>
   </ImplementationOrder>
 

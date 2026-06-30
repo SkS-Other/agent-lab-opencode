@@ -98,7 +98,7 @@
       </annotations>
     </M-STORE>
 
-    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-ENGINE NAME="ExperimentEngine" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Orchestrate experiments end to end with bounded parallelism, guaranteed cleanup, and a comparison facade.</purpose>
       <path>src/engine/index.ts</path>
       <depends>M-CONFIG, M-SANDBOX, M-OPENCODE, M-STORE, M-TRACE, M-LOGGER</depends>
@@ -114,13 +114,15 @@
       </annotations>
     </M-ENGINE>
 
-    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" STATUS="planned">
+    <M-CLI NAME="Cli" TYPE="ENTRY_POINT" STATUS="implemented">
       <purpose>Expose the engine to agents and humans as run/list/show/compare with parseable stdout.</purpose>
       <path>src/cli/index.ts</path>
       <depends>M-ENGINE, M-CONFIG, M-LOGGER</depends>
       <verification-ref>V-M-CLI</verification-ref>
       <annotations>
         <fn-main PURPOSE="CLI entry point dispatching run/list/show/compare" />
+        <type-CliDeps PURPOSE="Injectable ports (logger, store, engine fns, stdout/stderr sinks)" />
+        <class-CliError PURPOSE="Typed error carrying CLI_BAD_USAGE" />
       </annotations>
     </M-CLI>
 

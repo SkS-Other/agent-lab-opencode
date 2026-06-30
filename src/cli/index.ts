@@ -5,7 +5,7 @@
 //   SCOPE: main dispatch, flag parsing, run/list/show/compare commands, CLI_BAD_USAGE, replay via --from
 //   DEPENDS: M-ENGINE, M-CONFIG, M-LOGGER
 //   LINKS: M-CLI, V-M-CLI
-//   ROLE: ENTRY_POINT
+//   ROLE: RUNTIME
 //   MAP_MODE: EXPORTS
 // END_MODULE_CONTRACT
 //
@@ -14,7 +14,9 @@
 //   CliDeps - injectable ports (logger, store, engine fns, stdout/stderr sinks)
 //   CliError - typed error carrying CLI_BAD_USAGE
 //   CLI_BAD_USAGE - stable error code constant
-//   EXIT_OK / EXIT_RUNTIME / EXIT_BAD_USAGE - exit code constants
+//   EXIT_OK - exit code 0 (success)
+//   EXIT_RUNTIME - exit code 1 (runtime error)
+//   EXIT_BAD_USAGE - exit code 2 (bad usage / invalid input)
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
