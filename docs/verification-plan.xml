@@ -122,6 +122,7 @@
       </scenarios>
       <required-log-markers>
         <marker-1>[Trace][normalizeEvents][BLOCK_NORMALIZE_EVENTS]</marker-1>
+        <marker-2>[Trace][diffTraces][BLOCK_DIFF_TRACES]</marker-2>
       </required-log-markers>
       <required-trace-assertions>
         <assertion-1>RunTrace shape stays stable regardless of SDK event-shape churn (Risk-2).</assertion-1>
