@@ -14,6 +14,7 @@
         <type-ExperimentDefinition PURPOSE="Validated experiment input shape" />
         <type-ExperimentMatrix PURPOSE="Variation-matrix input shape" />
         <type-SandboxOptions PURPOSE="Sandbox/network options for one run" />
+        <type-NetworkMode PURPOSE="'open' | 'vacuum'" />
         <type-GraceLogger PURPOSE="Minimal structural logger interface (DI)" />
         <class-ConfigError PURPOSE="Typed validation error carrying CONFIG_INVALID_INPUT" />
       </annotations>
@@ -59,7 +60,8 @@
         <fn-buildRunArgs PURPOSE="Pure: translate a SandboxSpec into docker run args (network policy)" />
         <fn-createDockerEngine PURPOSE="Real DockerEngine backed by the docker CLI" />
         <type-SandboxHandle PURPOSE="Lifecycle handle for one sandbox (endpoint?, exec, dispose)" />
-        <type-SandboxSpec PURPOSE="Image, network allowlist, env, mounts, resource limits, publishPort" />
+        <type-SandboxSpec PURPOSE="Image, network allowlist, networkMode, env, mounts, resource limits, publishPort" />
+        <type-NetworkMode PURPOSE="'open' bridge egress | 'vacuum' iptables allowlist" />
         <type-DockerEngine PURPOSE="Injectable container backend with port resolution (faked in tests)" />
         <type-ReadyProbe PURPOSE="Injectable endpoint readiness probe" />
         <class-SandboxError PURPOSE="Typed error: PROVISION_FAILED | TEARDOWN_FAILED" />
