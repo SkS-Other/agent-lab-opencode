@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Persisted experiment runs (runtime data, not source)
+runs/
+
+# Logs
+*.log
+
+# Bun
+.bun/
+
+# Editor / OS
+.DS_Store
+*.swp
