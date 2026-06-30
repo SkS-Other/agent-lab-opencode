@@ -93,11 +93,11 @@ const spec: SandboxSpec = {
 };
 
 describe("buildRunArgs", () => {
-  // VF-003: empty allowlist => full network vacuum
-  test("uses --network none when the allowlist is empty", () => {
+  // 'open' mode always uses bridge (the agent needs LLM egress; none would break port publishing).
+  test("open mode uses bridge even with an empty allowlist", () => {
     const args = buildRunArgs({ image: "x", networkAllowlist: [] });
-    expect(args).toContain("--network");
-    expect(args[args.indexOf("--network") + 1]).toBe("none");
+    expect(args[args.indexOf("--network") + 1]).toBe("bridge");
+    expect(args).not.toContain("none");
   });
 
   test("uses bridge + allow labels when the allowlist is non-empty", () => {

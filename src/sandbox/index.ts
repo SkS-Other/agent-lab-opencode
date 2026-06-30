@@ -28,6 +28,7 @@
 // END_MODULE_MAP
 //
 // START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - 'open' mode always uses bridge (was --network none on empty allowlist, which broke port publishing). Strict isolation = 'vacuum'.
 //   LAST_CHANGE: v1.2.0 - Add 'vacuum' networkMode: in-container iptables egress allowlist (NET_ADMIN + vacuum entrypoint).
 //   LAST_CHANGE: v1.1.0 - Add publishPort + handle.endpoint + DockerEngine.port + injectable readiness probe for live runs.
 //   LAST_CHANGE: v1.0.0 - Initial M-SANDBOX: DI docker engine, network policy build, guaranteed teardown.
@@ -133,10 +134,9 @@ export function buildRunArgs(spec: SandboxSpec): string[] {
     args.push("--cap-add", "NET_ADMIN");
     args.push("-e", `AGENT_LAB_ALLOW=${hosts.join(",")}`);
     args.push("--entrypoint", VACUUM_ENTRYPOINT);
-  } else if (spec.networkAllowlist.length === 0) {
-    // 'open' with no allowlist => full vacuum.
-    args.push("--network", "none");
   } else {
+    // 'open': bridge egress (the agent needs to reach its LLM; --network none would also break
+    // port publishing). Strict isolation is the 'vacuum' mode. The allowlist is recorded as labels.
     args.push("--network", "bridge");
     for (const host of spec.networkAllowlist) {
       args.push("--label", `agent-lab.allow=${host}`);
@@ -180,7 +180,7 @@ export async function createSandbox(spec: SandboxSpec, deps: SandboxDeps): Promi
   logger.info(
     {
       marker: "BLOCK_APPLY_NETWORK_POLICY",
-      networkMode: mode === "vacuum" ? "vacuum" : spec.networkAllowlist.length === 0 ? "none" : "allowlist",
+      networkMode: mode === "vacuum" ? "vacuum" : "open",
       allowlistSize: spec.networkAllowlist.length,
     },
     "[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY] applying network policy",
