@@ -146,6 +146,7 @@
       <required-log-markers>
         <marker-1>[Sandbox][createSandbox][BLOCK_APPLY_NETWORK_POLICY]</marker-1>
         <marker-2>[Sandbox][createSandbox][BLOCK_TEARDOWN]</marker-2>
+        <marker-3>[Sandbox][createSandbox][BLOCK_WAIT_READY]</marker-3>
       </required-log-markers>
       <required-trace-assertions>
         <assertion-1>dispose() (BLOCK_TEARDOWN) runs on every path, including failure (Risk-3).</assertion-1>
