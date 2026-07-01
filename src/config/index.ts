@@ -16,6 +16,7 @@
 //   ExperimentMatrix - variation-matrix input shape
 //   SandboxOptions - sandbox/network options for one run
 //   NetworkMode - 'open' | 'vacuum'
+//   SandboxBackend - 'docker' | 'microsandbox'
 //   ConfigError - typed validation error carrying code CONFIG_INVALID_INPUT
 //   CONFIG_INVALID_INPUT - stable error code constant
 //   GraceLogger - minimal structural logger interface (DI; keeps DEPENDS=none)
@@ -45,10 +46,13 @@ export class ConfigError extends Error {
 }
 
 export type NetworkMode = "open" | "vacuum";
+export type SandboxBackend = "docker" | "microsandbox";
 
 export interface SandboxOptions {
   /** Container image that hosts opencode. */
   image: string;
+  /** Isolation backend: 'docker' (default) or 'microsandbox' (libkrun microVM). */
+  backend?: SandboxBackend;
   /** Hosts the sandbox may reach (deny-by-default otherwise); the LLM endpoint goes here. */
   networkAllowlist: string[];
   /** Hard wall-clock timeout for the run, in milliseconds. */
@@ -202,6 +206,12 @@ function normalizeSandbox(raw: unknown): SandboxOptions {
       throw new ConfigError(`field "sandbox.networkMode" must be "open" or "vacuum"`);
     }
     sandbox.networkMode = s.networkMode;
+  }
+  if (s.backend !== undefined) {
+    if (s.backend !== "docker" && s.backend !== "microsandbox") {
+      throw new ConfigError(`field "sandbox.backend" must be "docker" or "microsandbox"`);
+    }
+    sandbox.backend = s.backend;
   }
   if (s.resourceLimits !== undefined) {
     if (typeof s.resourceLimits !== "object" || s.resourceLimits === null) {

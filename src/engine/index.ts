@@ -169,6 +169,7 @@ export function createDefaultExecutor(deps: {
         publishPort: OPENCODE_SERVE_PORT,
         env: collectProviderEnv(),
         mounts: opencodeConfigMounts(),
+        ...(experiment.sandbox.backend !== undefined ? { backend: experiment.sandbox.backend } : {}),
         ...(experiment.sandbox.networkMode !== undefined ? { networkMode: experiment.sandbox.networkMode } : {}),
         ...(experiment.sandbox.resourceLimits !== undefined ? { resourceLimits: experiment.sandbox.resourceLimits } : {}),
       };

@@ -4,7 +4,10 @@
   "description": "CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker, capture and compare agent behavior.",
   "license": "MIT",
   "author": "ShutovKS",
-  "repository": { "type": "git", "url": "git+https://github.com/ShutovKS/agent-lab.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShutovKS/agent-lab.git"
+  },
   "homepage": "https://github.com/ShutovKS/agent-lab#readme",
   "keywords": ["agent", "lab", "llm", "orchestration", "sandbox", "prompt", "opencode", "mcp", "docker"],
   "type": "module",
@@ -20,6 +23,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opencode-ai/sdk": "^1.17.11",
+    "microsandbox": "^0.6.1",
     "pino": "^9.0.0",
     "zod": "^4.4.3"
   },
