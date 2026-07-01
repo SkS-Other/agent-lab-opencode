@@ -19,6 +19,26 @@ primarily to be **called by agents** (over MCP), and secondarily by humans (CLI)
 
 ## Install
 
+Pick one. All three give you the `agent-lab` (CLI) and `agent-lab-mcp` (MCP server) commands.
+Docker (or the microsandbox runtime) and the sandbox image are separate prerequisites — see below.
+
+**npm (needs Node ≥ 22):**
+
+```sh
+npm install -g agent-lab-opencode
+# or run without installing:  npx -y agent-lab-opencode-mcp
+```
+
+**Standalone binary (no Node/Bun required)** — download for your platform from the
+[latest release](https://github.com/ShutovKS/agent-lab-opencode/releases/latest), e.g.:
+
+```sh
+curl -fsSL -o agent-lab https://github.com/ShutovKS/agent-lab-opencode/releases/latest/download/agent-lab-darwin-arm64
+chmod +x agent-lab
+```
+
+**From source (Bun):**
+
 ```sh
 bun install
 bun link                                             # exposes `agent-lab` + `agent-lab-mcp` on PATH

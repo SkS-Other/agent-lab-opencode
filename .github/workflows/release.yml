@@ -1,0 +1,66 @@
+name: release
+
+# On a version tag (vX.Y.Z): publish the npm package and attach standalone binaries to the release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  standalone-binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            suffix: linux-x64
+          - os: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            suffix: linux-arm64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            suffix: darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            suffix: darwin-x64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # upload release assets
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Compile standalone binaries
+        run: |
+          bun build --compile --target=${{ matrix.target }} --outfile=agent-lab-${{ matrix.suffix }} src/bin/agent-lab.ts
+          bun build --compile --target=${{ matrix.target }} --outfile=agent-lab-mcp-${{ matrix.suffix }} src/bin/agent-lab-mcp.ts
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent-lab-${{ matrix.suffix }}
+            agent-lab-mcp-${{ matrix.suffix }}
