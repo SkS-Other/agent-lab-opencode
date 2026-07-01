@@ -6,9 +6,9 @@
   "author": "ShutovKS",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ShutovKS/agent-lab.git"
+    "url": "git+https://github.com/ShutovKS/agent-lab-opencode.git"
   },
-  "homepage": "https://github.com/ShutovKS/agent-lab#readme",
+  "homepage": "https://github.com/ShutovKS/agent-lab-opencode#readme",
   "keywords": ["agent", "lab", "llm", "orchestration", "sandbox", "prompt", "opencode", "mcp", "docker"],
   "type": "module",
   "module": "src/cli/index.ts",
