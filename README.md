@@ -116,6 +116,18 @@ Config file (`--config`) is either a single definition or a variation matrix:
 }
 ```
 
+## Sandbox backends
+
+Set `backend` on the sandbox options:
+
+- **`docker`** (default) — one container per run; strong FS/PID/network isolation; the vacuum
+  network mode is enforced with an in-container iptables allowlist. Requires Docker.
+- **`microsandbox`** — a **libkrun microVM** per run, **no Docker daemon**. Same behavior behind
+  the same contract (port publish, `NetworkPolicy` egress allowlist, guaranteed teardown).
+  Requires the microsandbox runtime (`curl -fsSL https://install.microsandbox.dev | sh`) and a
+  **registry** image (microsandbox pulls images from a registry, not a local Docker build), on
+  macOS Apple Silicon or Linux+KVM. The SDK is lazy-loaded, so the Docker path never touches it.
+
 ## Network modes
 
 Set `networkMode` on the sandbox options:

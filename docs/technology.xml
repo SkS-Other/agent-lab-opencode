@@ -9,6 +9,7 @@
     <dep name="pino" version="9.x" purpose="Structured logging with stable marker fields and redaction." />
     <dep name="@modelcontextprotocol/sdk" version="1.x" purpose="MCP stdio server (M-MCP) exposing the engine as agent-callable tools." />
     <dep name="zod" version="4.x" purpose="Runtime input-schema validation for MCP tool arguments." />
+    <dep name="microsandbox" version="0.6.x" purpose="Optional non-Docker sandbox backend: libkrun microVM with port publish + network policy allowlist. Lazy-loaded native binding." />
     <!-- Docker is used via CLI/engine API for sandbox lifecycle. A client lib (e.g. dockerode) vs. shelling out to the docker CLI is an open decision for $grace-plan. -->
     <!-- A CLI arg parser (e.g. built-in, citty, or commander) to be chosen in $grace-plan. -->
   </Dependencies>

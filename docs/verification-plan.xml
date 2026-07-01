@@ -153,6 +153,7 @@
     <V-M-SANDBOX MODULE="M-SANDBOX" PRIORITY="high">
       <test-files>
         <file>src/sandbox/index.test.ts</file>
+        <file>src/sandbox/microsandbox.test.ts</file>
       </test-files>
       <module-checks>
         <check-1>bun test src/sandbox/index.test.ts</check-1>

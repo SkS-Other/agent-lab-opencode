@@ -148,7 +148,8 @@
       <notes>
         <note-1>The only module that knows Docker. Decision dockerode vs. docker CLI deferred to execution.</note-1>
         <note-2>Teardown (BLOCK_TEARDOWN) must run on every path, including failure (Risk-3). Provider key injected via env (decision-OQ2).</note-2>
-        <note-3>Phase-4: strict 'vacuum' network mode = tinyproxy sidecar with a domain allowlist (cpa.funxyz.fun, models.dev, opencode.ai) + main container on an internal docker network + HTTPS_PROXY. Teardown must remove the sidecar and network too (no leak). Default stays 'open' bridge.</note-3>
+        <note-3>Phase-4: strict 'vacuum' network mode = in-container iptables egress allowlist (final impl; tinyproxy idea dropped since node fetch ignores HTTPS_PROXY). Default 'open' = bridge.</note-3>
+        <note-4>Pluggable backend: SandboxSpec.backend 'docker' (default) | 'microsandbox' (libkrun microVM, no Docker daemon). createMicrosandbox (src/sandbox/microsandbox.ts) implements the same SandboxHandle contract via Sandbox.builder + NetworkPolicy allowlist + execStream(opencode serve). Live run needs a registry image + libkrun runtime; module-level tested on a fake client.</note-4>
       </notes>
     </M-SANDBOX>
 
