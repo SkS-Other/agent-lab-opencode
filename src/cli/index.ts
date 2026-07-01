@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 // FILE: src/cli/index.ts
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
