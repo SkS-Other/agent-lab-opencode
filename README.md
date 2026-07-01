@@ -21,8 +21,20 @@ primarily to be **called by agents** (over MCP), and secondarily by humans (CLI)
 
 ```sh
 bun install
-docker build -t agent-lab-opencode:latest docker/   # sandbox image (opencode serve)
 bun link                                             # exposes `agent-lab` + `agent-lab-mcp` on PATH
+```
+
+Get the sandbox image (opencode serve) — either pull the published multi-arch image:
+
+```sh
+docker pull ghcr.io/shutovks/agent-lab-opencode:latest
+docker tag ghcr.io/shutovks/agent-lab-opencode:latest agent-lab-opencode:latest
+```
+
+…or build it locally:
+
+```sh
+docker build -t agent-lab-opencode:latest docker/
 ```
 
 > The engine, CLI, and MCP server all run **on the host** (where Docker + your OpenCode config
