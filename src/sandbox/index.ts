@@ -14,8 +14,9 @@
 //   withSandbox - run a function with a sandbox and guarantee dispose() (BLOCK_TEARDOWN)
 //   buildRunArgs - pure: translate a SandboxSpec into docker run arguments (network policy + port publish)
 //   createDockerEngine - real DockerEngine backed by the docker CLI via Bun.spawn
-//   SandboxSpec - image, network allowlist, networkMode, env, mounts, resource limits, publishPort
+//   SandboxSpec - image, backend, network allowlist, networkMode, env, mounts, resource limits, publishPort
 //   NetworkMode - 'open' | 'vacuum'
+//   SandboxBackend - 'docker' | 'microsandbox'
 //   SandboxMount - one source->target mount
 //   SandboxHandle - { sandboxId, endpoint?, exec, dispose }
 //   ExecResult - { stdout, stderr, exitCode }
@@ -57,9 +58,12 @@ export interface SandboxMount {
 }
 
 export type NetworkMode = "open" | "vacuum";
+export type SandboxBackend = "docker" | "microsandbox";
 
 export interface SandboxSpec {
   image: string;
+  /** Isolation backend. 'docker' (default) or 'microsandbox' (libkrun microVM, no Docker daemon). */
+  backend?: SandboxBackend;
   /** Hosts the container may reach. In 'open' mode: empty => --network none, else bridge. In 'vacuum' mode: the egress allowlist. */
   networkAllowlist: string[];
   /**
@@ -176,6 +180,14 @@ export function buildRunArgs(spec: SandboxSpec): string[] {
 // END_CONTRACT: createSandbox
 export async function createSandbox(spec: SandboxSpec, deps: SandboxDeps): Promise<SandboxHandle> {
   const { logger } = deps;
+
+  // Delegate to the microsandbox (libkrun microVM) backend when selected. Lazy import so the
+  // Docker path never loads the native binding.
+  if (spec.backend === "microsandbox") {
+    const { createMicrosandbox } = await import("./microsandbox.ts");
+    return createMicrosandbox(spec, { logger, ...(deps.ready !== undefined ? { ready: deps.ready } : {}) });
+  }
+
   const engine = deps.engine ?? createDockerEngine();
 
   // START_BLOCK_APPLY_NETWORK_POLICY
