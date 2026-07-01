@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 // FILE: src/mcp/index.ts
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
