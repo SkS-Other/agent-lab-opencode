@@ -1,5 +1,5 @@
 {
-  "name": "agent-lab",
+  "name": "agent-lab-opencode",
   "version": "0.1.0",
   "description": "CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker, capture and compare agent behavior.",
   "license": "MIT",
@@ -13,10 +13,15 @@
   "type": "module",
   "module": "src/cli/index.ts",
   "bin": {
-    "agent-lab": "src/cli/index.ts",
-    "agent-lab-mcp": "src/mcp/index.ts"
+    "agent-lab": "dist/bin/agent-lab.js",
+    "agent-lab-mcp": "dist/bin/agent-lab-mcp.js"
   },
+  "files": ["dist", "docs", "docker", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
   "scripts": {
+    "build": "bun build --target=node --packages=external --outdir=dist/bin src/bin/agent-lab.ts src/bin/agent-lab-mcp.ts",
+    "compile": "bun build --compile --outfile=bin/agent-lab src/bin/agent-lab.ts && bun build --compile --outfile=bin/agent-lab-mcp src/bin/agent-lab-mcp.ts",
+    "prepare": "bun run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

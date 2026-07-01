@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 // FILE: src/mcp/index.ts
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
@@ -212,9 +211,3 @@ function fail(message: string): ToolResult {
   return { content: [{ type: "text", text: message }], isError: true };
 }
 
-if (import.meta.main) {
-  main().catch((err) => {
-    process.stderr.write(`[Mcp][main] fatal: ${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(1);
-  });
-}

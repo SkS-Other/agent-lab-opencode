@@ -13,7 +13,7 @@
 //   createSandbox - provision an isolated container, return a lifecycle handle
 //   withSandbox - run a function with a sandbox and guarantee dispose() (BLOCK_TEARDOWN)
 //   buildRunArgs - pure: translate a SandboxSpec into docker run arguments (network policy + port publish)
-//   createDockerEngine - real DockerEngine backed by the docker CLI via Bun.spawn
+//   createDockerEngine - real DockerEngine backed by the docker CLI via node:child_process
 //   SandboxSpec - image, backend, network allowlist, networkMode, env, mounts, resource limits, publishPort
 //   NetworkMode - 'open' | 'vacuum'
 //   SandboxBackend - 'docker' | 'microsandbox'
@@ -35,6 +35,7 @@
 //   LAST_CHANGE: v1.0.0 - Initial M-SANDBOX: DI docker engine, network policy build, guaranteed teardown.
 // END_CHANGE_SUMMARY
 
+import { spawn } from "node:child_process";
 import type { Logger } from "../logger/index.ts";
 
 export const SANDBOX_PROVISION_FAILED = "SANDBOX_PROVISION_FAILED" as const;
@@ -278,7 +279,7 @@ export async function withSandbox<T>(
 }
 
 // START_CONTRACT: createDockerEngine
-//   PURPOSE: Build a DockerEngine backed by the docker CLI via Bun.spawn.
+//   PURPOSE: Build a DockerEngine backed by the docker CLI via node:child_process.
 //   INPUTS: {}
 //   OUTPUTS: { DockerEngine }
 //   SIDE_EFFECTS: spawns docker processes when used
@@ -334,12 +335,15 @@ async function defaultReadyProbe(url: string, timeoutMs = 30_000): Promise<void>
   throw new Error(`endpoint ${url} not ready within ${timeoutMs}ms`, { cause: lastErr });
 }
 
-async function spawnDocker(args: string[]): Promise<ExecResult> {
-  const proc = Bun.spawn(["docker", ...args], { stdout: "pipe", stderr: "pipe" });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return { stdout, stderr, exitCode };
+function spawnDocker(args: string[]): Promise<ExecResult> {
+  // node:child_process so the tool runs on plain Node (npm) as well as Bun.
+  return new Promise((resolve, reject) => {
+    const proc = spawn("docker", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+    proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+    proc.on("error", reject);
+    proc.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? -1 }));
+  });
 }
