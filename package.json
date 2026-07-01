@@ -2,6 +2,11 @@
   "name": "agent-lab",
   "version": "0.1.0",
   "description": "CLI-driven, OpenCode-centered experiment runner: vary system prompt / model / task prompt, run isolated in Docker, capture and compare agent behavior.",
+  "license": "MIT",
+  "author": "ShutovKS",
+  "repository": { "type": "git", "url": "git+https://github.com/ShutovKS/agent-lab.git" },
+  "homepage": "https://github.com/ShutovKS/agent-lab#readme",
+  "keywords": ["agent", "lab", "llm", "orchestration", "sandbox", "prompt", "opencode", "mcp", "docker"],
   "type": "module",
   "module": "src/cli/index.ts",
   "bin": {
