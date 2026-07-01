@@ -16,3 +16,6 @@ runs/
 # Editor / OS
 .DS_Store
 *.swp
+
+# Compiled standalone binaries (bun build --compile)
+/bin/

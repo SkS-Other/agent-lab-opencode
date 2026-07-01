@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 // FILE: src/cli/index.ts
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
@@ -202,7 +201,3 @@ function positiveInt(value: string, label: string): number {
   return n;
 }
 
-// Entry point when invoked directly (bun src/cli/index.ts ...).
-if (import.meta.main) {
-  main(process.argv.slice(2)).then((code) => process.exit(code));
-}
