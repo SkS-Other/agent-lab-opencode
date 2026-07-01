@@ -1,6 +1,9 @@
 name: release
 
 # On a version tag (vX.Y.Z): publish the npm package and attach standalone binaries to the release.
+# All binaries are cross-compiled on a single Linux runner (Bun cross-compiles every target), so
+# there are no slow/flaky macOS runners in the release path.
+# Actions are pinned to commit SHAs (supply-chain hardening); the trailing comment is the version.
 on:
   push:
     tags: ["v*"]
@@ -8,16 +11,18 @@ on:
 
 jobs:
   publish-npm:
+    # Only act on a real tag — a manual dispatch from a branch has no version to publish.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write # npm provenance
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
@@ -29,38 +34,28 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   standalone-binaries:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: bun-linux-x64
-            suffix: linux-x64
-          - os: ubuntu-24.04-arm
-            target: bun-linux-arm64
-            suffix: linux-arm64
-          - os: macos-latest
-            target: bun-darwin-arm64
-            suffix: darwin-arm64
-          - os: macos-13
-            target: bun-darwin-x64
-            suffix: darwin-x64
-    runs-on: ${{ matrix.os }}
+    # action-gh-release needs a tag; skip on branch dispatch.
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
     permissions:
       contents: write # upload release assets
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Compile standalone binaries
+      - name: Cross-compile all targets on one runner
         run: |
-          bun build --compile --target=${{ matrix.target }} --outfile=agent-lab-${{ matrix.suffix }} src/bin/agent-lab.ts
-          bun build --compile --target=${{ matrix.target }} --outfile=agent-lab-mcp-${{ matrix.suffix }} src/bin/agent-lab-mcp.ts
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
+          set -euo pipefail
+          for t in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            bun build --compile --target=bun-"$t" --outfile=agent-lab-"$t" src/bin/agent-lab.ts
+            bun build --compile --target=bun-"$t" --outfile=agent-lab-mcp-"$t" src/bin/agent-lab-mcp.ts
+          done
+          sha256sum agent-lab-* > SHA256SUMS.txt
+      - name: Attach binaries + checksums to the release
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           files: |
-            agent-lab-${{ matrix.suffix }}
-            agent-lab-mcp-${{ matrix.suffix }}
+            agent-lab-*
+            SHA256SUMS.txt
